@@ -1,0 +1,322 @@
+[
+    {
+        "id": 1,
+        "name": "bartowski/Llama-3.2-1B-Instruct-GGUF",
+        "filename_pattern": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "1B",
+        "pros": "Extremely lightweight, runs on any hardware including phones and Raspberry Pi. Fast inference, minimal VRAM footprint.",
+        "cons": "Very limited reasoning capabilities. Poor performance on complex tasks and coding. Struggles with multi-step logic."
+    },
+    {
+        "id": 2,
+        "name": "bartowski/Llama-3.2-1B-Instruct-GGUF",
+        "filename_pattern": "Llama-3.2-1B-Instruct-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "1B",
+        "pros": "Near-original quality for 1B model. Still lightweight and portable. Better accuracy than Q4.",
+        "cons": "Still limited reasoning. Double VRAM usage of Q4. Not suitable for complex reasoning tasks."
+    },
+    {
+        "id": 3,
+        "name": "bartowski/Llama-3.2-3B-Instruct-GGUF",
+        "filename_pattern": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "3B",
+        "pros": "Great balance of speed and capability. Runs on most laptops and edge devices. Improved reasoning over 1B.",
+        "cons": "Still limited for heavy coding and math. Minor quality loss from quantization. Not ideal for very long contexts."
+    },
+    {
+        "id": 4,
+        "name": "bartowski/Llama-3.2-3B-Instruct-GGUF",
+        "filename_pattern": "Llama-3.2-3B-Instruct-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "3B",
+        "pros": "High fidelity, near-original quality. Better accuracy for general tasks. Improved instruction following.",
+        "cons": "Uses roughly 2x VRAM of Q4. Still limited reasoning for complex problems."
+    },
+    {
+        "id": 5,
+        "name": "bartowski/Phi-3.5-mini-instruct-GGUF",
+        "filename_pattern": "Phi-3.5-mini-instruct-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "3.8B",
+        "pros": "Exceptional logic and math for 3.8B. Efficient memory usage. Excellent instruction following.",
+        "cons": "Struggles with broad world knowledge. Needs specific chat formatting. Less versatile than Llama."
+    },
+    {
+        "id": 6,
+        "name": "bartowski/Phi-3.5-mini-instruct-GGUF",
+        "filename_pattern": "Phi-3.5-mini-instruct-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "3.8B",
+        "pros": "Near-original quality. Retains almost all reasoning capabilities. Better accuracy on complex logic.",
+        "cons": "Doubles VRAM requirement. Still struggles with world knowledge. Requires formatting for optimal output."
+    },
+    {
+        "id": 7,
+        "name": "bartowski/Mistral-7B-Instruct-v0.2-GGUF",
+        "filename_pattern": "Mistral-7B-Instruct-v0.2-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/Mistral-7B-Instruct-v0.2-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "7B",
+        "pros": "Versatile generalist model. Excellent context handling (32k tokens). Fast inference. Good on multiple tasks.",
+        "cons": "Minor loss in precision for heavy math/coding. Occasionally hallucinates on technical facts."
+    },
+    {
+        "id": 8,
+        "name": "bartowski/Mistral-7B-Instruct-v0.2-GGUF",
+        "filename_pattern": "Mistral-7B-Instruct-v0.2-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/Mistral-7B-Instruct-v0.2-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "7B",
+        "pros": "Near-FP16 quality. Retains almost all reasoning. Better accuracy on technical content.",
+        "cons": "Requires roughly double the VRAM of Q4. Occasionally hallucinates."
+    },
+    {
+        "id": 9,
+        "name": "bartowski/Llama-3-8B-Instruct-GGUF",
+        "filename_pattern": "Llama-3-8B-Instruct-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Llama-3-8B-Instruct-GGUF/resolve/main/Llama-3-8B-Instruct-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "8B",
+        "pros": "Excellent reasoning and instruction following. Runs well on mid-range GPUs. Great for general tasks.",
+        "cons": "Minor loss in precision for heavy math/coding. Can be overly cautious due to alignment."
+    },
+    {
+        "id": 10,
+        "name": "bartowski/Llama-3-8B-Instruct-GGUF",
+        "filename_pattern": "Llama-3-8B-Instruct-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/Llama-3-8B-Instruct-GGUF/resolve/main/Llama-3-8B-Instruct-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "8B",
+        "pros": "Near-FP16 quality. Retains almost all reasoning capabilities. Excellent instruction following.",
+        "cons": "Requires roughly double the VRAM of Q4. Can be overly cautious due to alignment."
+    },
+    {
+        "id": 11,
+        "name": "bartowski/Qwen2-7B-Instruct-GGUF",
+        "filename_pattern": "Qwen2-7B-Instruct-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Qwen2-7B-Instruct-GGUF/resolve/main/Qwen2-7B-Instruct-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "7B",
+        "pros": "Outstanding multilingual support. Top-tier coding performance. Very efficient. Excellent reasoning.",
+        "cons": "Minor loss in precision for heavy math/coding. Alignment can interfere with edge-case requests."
+    },
+    {
+        "id": 12,
+        "name": "bartowski/Qwen2-7B-Instruct-GGUF",
+        "filename_pattern": "Qwen2-7B-Instruct-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/Qwen2-7B-Instruct-GGUF/resolve/main/Qwen2-7B-Instruct-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "7B",
+        "pros": "Near-FP16 quality. Excellent for multilingual and coding tasks. Better accuracy retained.",
+        "cons": "Requires roughly double the VRAM of Q4. Alignment restrictions on some edge cases."
+    },
+    {
+        "id": 13,
+        "name": "bartowski/gemma-2-9b-it-GGUF",
+        "filename_pattern": "gemma-2-9b-it-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "9B",
+        "pros": "Backed by Google DeepMind. Excels in creative writing and NLP tasks. Efficient inference.",
+        "cons": "Rigid prompt template required. Can be verbose. Minor loss in precision from quantization."
+    },
+    {
+        "id": 14,
+        "name": "bartowski/gemma-2-9b-it-GGUF",
+        "filename_pattern": "gemma-2-9b-it-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "9B",
+        "pros": "Near-FP16 quality. Better accuracy for creative and NLP tasks. Retains capabilities.",
+        "cons": "Requires roughly double VRAM of Q4. Requires strict template formatting."
+    },
+    {
+        "id": 15,
+        "name": "bartowski/Phi-3.5-vision-instruct-GGUF",
+        "filename_pattern": "Phi-3.5-vision-instruct-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Phi-3.5-vision-instruct-GGUF/resolve/main/Phi-3.5-vision-instruct-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "4.2B",
+        "pros": "Vision capabilities in a small package. Excellent for visual understanding. Very efficient.",
+        "cons": "Smaller than typical vision models. Limited world knowledge. Requires specific formatting."
+    },
+    {
+        "id": 16,
+        "name": "bartowski/Phi-3.5-vision-instruct-GGUF",
+        "filename_pattern": "Phi-3.5-vision-instruct-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/Phi-3.5-vision-instruct-GGUF/resolve/main/Phi-3.5-vision-instruct-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "4.2B",
+        "pros": "Near-FP16 quality for vision tasks. Better image understanding. Improved accuracy.",
+        "cons": "Doubles VRAM requirements. Still limited world knowledge. Needs specific formatting."
+    },
+    {
+        "id": 17,
+        "name": "bartowski/Mistral-Nemo-Instruct-2407-GGUF",
+        "filename_pattern": "Mistral-Nemo-Instruct-2407-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Mistral-Nemo-Instruct-2407-GGUF/resolve/main/Mistral-Nemo-Instruct-2407-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "12B",
+        "pros": "Latest Mistral model. Strong coding and reasoning. Excellent instruction following.",
+        "cons": "Slightly larger than previous Mistral versions. Minor quantization loss."
+    },
+    {
+        "id": 18,
+        "name": "bartowski/Mistral-Nemo-Instruct-2407-GGUF",
+        "filename_pattern": "Mistral-Nemo-Instruct-2407-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/Mistral-Nemo-Instruct-2407-GGUF/resolve/main/Mistral-Nemo-Instruct-2407-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "12B",
+        "pros": "Near-FP16 quality. Excellent reasoning and coding capabilities. Better accuracy.",
+        "cons": "Requires roughly double the VRAM of Q4. Larger model overall."
+    },
+    {
+        "id": 19,
+        "name": "bartowski/Llama-3-70B-Instruct-GGUF",
+        "filename_pattern": "Llama-3-70B-Instruct-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Llama-3-70B-Instruct-GGUF/resolve/main/Llama-3-70B-Instruct-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "70B",
+        "pros": "State-of-the-art reasoning and instruction following. Handles complex tasks. Best-in-class accuracy.",
+        "cons": "Requires high-end GPU (24GB+ VRAM). Slow inference on consumer hardware. High computational cost."
+    },
+    {
+        "id": 20,
+        "name": "bartowski/Llama-3-70B-Instruct-GGUF",
+        "filename_pattern": "Llama-3-70B-Instruct-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/Llama-3-70B-Instruct-GGUF/resolve/main/Llama-3-70B-Instruct-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "70B",
+        "pros": "Near-original quality. Exceptional reasoning and instruction following. Best accuracy.",
+        "cons": "Requires very high-end GPU (40GB+ VRAM). Expensive computational resource. Slow on consumer hardware."
+    },
+    {
+        "id": 21,
+        "name": "bartowski/Qwen2-72B-Instruct-GGUF",
+        "filename_pattern": "Qwen2-72B-Instruct-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Qwen2-72B-Instruct-GGUF/resolve/main/Qwen2-72B-Instruct-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "72B",
+        "pros": "Outstanding reasoning and coding. Exceptional multilingual support. Great instruction following.",
+        "cons": "Requires high-end GPU (24GB+ VRAM). Slow inference. High computational cost. Very large model."
+    },
+    {
+        "id": 22,
+        "name": "bartowski/Qwen2-72B-Instruct-GGUF",
+        "filename_pattern": "Qwen2-72B-Instruct-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/Qwen2-72B-Instruct-GGUF/resolve/main/Qwen2-72B-Instruct-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "72B",
+        "pros": "Near-original quality. Best multilingual and coding performance. Exceptional accuracy.",
+        "cons": "Requires very high-end GPU (40GB+ VRAM). Very slow on consumer hardware. Expensive."
+    },
+    {
+        "id": 23,
+        "name": "bartowski/gemma-2-27b-it-GGUF",
+        "filename_pattern": "gemma-2-27b-it-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/gemma-2-27b-it-GGUF/resolve/main/gemma-2-27b-it-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "27B",
+        "pros": "Google's advanced model. Excellent reasoning and creativity. Good balance of size and capability.",
+        "cons": "Requires decent GPU (8-12GB VRAM). Rigid prompt template needed. Can be verbose."
+    },
+    {
+        "id": 24,
+        "name": "bartowski/gemma-2-27b-it-GGUF",
+        "filename_pattern": "gemma-2-27b-it-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/gemma-2-27b-it-GGUF/resolve/main/gemma-2-27b-it-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "27B",
+        "pros": "Near-FP16 quality. Better accuracy and reasoning. Improved instruction following.",
+        "cons": "Requires roughly double VRAM of Q4 (16-20GB). Strict template requirement."
+    },
+    {
+        "id": 25,
+        "name": "bartowski/DeepSeek-Coder-1.3B-Instruct-GGUF",
+        "filename_pattern": "DeepSeek-Coder-1.3B-Instruct-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/DeepSeek-Coder-1.3B-Instruct-GGUF/resolve/main/DeepSeek-Coder-1.3B-Instruct-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "1.3B",
+        "pros": "Specialized for coding tasks. Lightweight and efficient. Good code completion.",
+        "cons": "Limited to coding domain. Poor general knowledge. Not suitable for non-code tasks."
+    },
+    {
+        "id": 26,
+        "name": "bartowski/DeepSeek-Coder-1.3B-Instruct-GGUF",
+        "filename_pattern": "DeepSeek-Coder-1.3B-Instruct-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/DeepSeek-Coder-1.3B-Instruct-GGUF/resolve/main/DeepSeek-Coder-1.3B-Instruct-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "1.3B",
+        "pros": "Better code quality and accuracy. Near-original performance for coding.",
+        "cons": "Doubles VRAM usage. Still limited to coding domain. Not general purpose."
+    },
+    {
+        "id": 27,
+        "name": "bartowski/TinyLlama-1.1B-Chat-v1.0-GGUF",
+        "filename_pattern": "TinyLlama-1.1B-Chat-v1.0-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/TinyLlama-1.1B-Chat-v1.0-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "1.1B",
+        "pros": "Ultra-lightweight. Runs on any hardware including phones. Fast inference. Minimal resources.",
+        "cons": "Very limited reasoning. Poor at complex tasks. Struggles with coding and math."
+    },
+    {
+        "id": 28,
+        "name": "bartowski/TinyLlama-1.1B-Chat-v1.0-GGUF",
+        "filename_pattern": "TinyLlama-1.1B-Chat-v1.0-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/TinyLlama-1.1B-Chat-v1.0-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "1.1B",
+        "pros": "Better quality for 1.1B model. Improved accuracy for general chat.",
+        "cons": "Still very limited reasoning. Double VRAM of Q4. Not for complex tasks."
+    },
+    {
+        "id": 29,
+        "name": "bartowski/OpenHermes-2.5-Mistral-7B-GGUF",
+        "filename_pattern": "OpenHermes-2.5-Mistral-7B-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/OpenHermes-2.5-Mistral-7B-GGUF/resolve/main/OpenHermes-2.5-Mistral-7B-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "7B",
+        "pros": "Excellent instruction following. Very compliant model. Good reasoning capabilities.",
+        "cons": "Less safety guardrails. Can provide incorrect answers confidently. Minor quantization loss."
+    },
+    {
+        "id": 30,
+        "name": "bartowski/OpenHermes-2.5-Mistral-7B-GGUF",
+        "filename_pattern": "OpenHermes-2.5-Mistral-7B-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/OpenHermes-2.5-Mistral-7B-GGUF/resolve/main/OpenHermes-2.5-Mistral-7B-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "7B",
+        "pros": "Near-FP16 quality. Better accuracy for instruction following. Improved reasoning.",
+        "cons": "Requires roughly double VRAM of Q4. Less safety guardrails compared to aligned models."
+    },
+    {
+        "id": 31,
+        "name": "bartowski/Nous-Hermes-2-Mixtral-8x7B-GGUF",
+        "filename_pattern": "Nous-Hermes-2-Mixtral-8x7B-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Nous-Hermes-2-Mixtral-8x7B-GGUF/resolve/main/Nous-Hermes-2-Mixtral-8x7B-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "47B",
+        "pros": "Mixtral model with expert routing. Excellent reasoning and instruction following. Strong generalist.",
+        "cons": "Large model size. Requires 16-20GB VRAM. Slower inference. Complex routing overhead."
+    },
+    {
+        "id": 32,
+        "name": "bartowski/Nous-Hermes-2-Mixtral-8x7B-GGUF",
+        "filename_pattern": "Nous-Hermes-2-Mixtral-8x7B-Q8_0.gguf",
+        "link": "https://huggingface.co/bartowski/Nous-Hermes-2-Mixtral-8x7B-GGUF/resolve/main/Nous-Hermes-2-Mixtral-8x7B-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "47B",
+        "pros": "Near-original quality for Mixtral. Excellent reasoning and expert routing. Best accuracy.",
+        "cons": "Requires very high-end GPU (24-32GB VRAM). Slow inference. High computational cost."
+    }
+]

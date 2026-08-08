@@ -1,0 +1,7 @@
+target/
+python-dependencies/
+src/main/java/com/example/LLMs/
+models/
+**/.cache/
+.DS_Store
+**/.DS_Store
