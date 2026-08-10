@@ -56,10 +56,10 @@ public static double[] launch() {
     HttpClient client = HttpClient.newHttpClient();
     String osName = System.getProperty("os.name").toLowerCase();
     String baseName= "llamafile-0.10.4-thin";
-    if (osName.contains("win")) {
+    File execFile = Paths.get("src", "main", "java", "com", "example", "resources","Llamafile", baseName).toFile();
+if (osName.contains("win")) {
         baseName +=".exe";
     }
-    File execFile = Paths.get("src", "main", "java", "com", "example", "resources","Llamafile", baseName).toFile();
     if (!osName.contains("win")) {
         if (!execFile.setExecutable(true)) {
             System.err.println("Failed to set executable permission for " + execFile.getAbsolutePath());
