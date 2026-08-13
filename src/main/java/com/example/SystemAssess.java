@@ -9,8 +9,11 @@ import oshi.software.os.FileSystem;
 import oshi.hardware.GlobalMemory;
 import oshi.hardware.GraphicsCard;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
+import java.io.File;
+import java.io.FileWriter;
+import java.io.FileReader;
 public class SystemAssess {
+    File outputFile=new File("src/main/java/com/example/resources/bandwidth.txt");
     SystemInfo si = new SystemInfo();
     HardwareAbstractionLayer hal = si.getHardware();
     CentralProcessor cpu = hal.getProcessor();
@@ -21,11 +24,9 @@ public class SystemAssess {
     Path path = Paths.get("/Users/apple/Local-Ide/src/main/java/com/example/gpu_tflops.json");
     ObjectMapper mapper = new ObjectMapper();
 
-    double[] tokenpersecond = Suggestion.launch();
     double ONEB = 0;
     double onehalfbillion = 0;
     double halfbillion = 0;
-    int size = tokenpersecond.length;
     int validcount = 0;
     private static final double LLAMA_1B_SIZE_GB = 0.60375;
     private static final double QWEN_1_5B_SIZE_GB = 0.905625;
@@ -33,6 +34,8 @@ public class SystemAssess {
     private static final double OVERHEAD_FACTOR = 1;
 
     public double bandwidth() {
+        double[] tokenpersecond = Suggestion.launch();
+        int size = tokenpersecond.length;
         ONEB = 0;
         onehalfbillion = 0;
         halfbillion = 0;
@@ -65,12 +68,27 @@ public class SystemAssess {
 
         System.out.println("Raw Token/s Array: " + java.util.Arrays.toString(tokenpersecond));
         System.out.println("Calculated True Bandwidth: " + String.format("%.3f", calculatedBandwidth) + " GB/s");
-
+        try {
+            FileWriter writer = new FileWriter(outputFile);
+            writer.write(calculatedBandwidth + "\n");
+            writer.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return calculatedBandwidth;
     }
 
     public double estimate(double param, double quantized) {
-        double currentBandwidth = bandwidth();
+        double currentBandwidth;
+        try {
+            FileReader reader = new FileReader("src/main/java/com/example/resources/bandwidth.txt");
+            currentBandwidth = Double.parseDouble(new java.util.Scanner(reader).useDelimiter("\\A").next());
+            reader.close();
+        } catch (Exception e) {
+            System.out.println("Assessment has not been run yet. Running assessment now... Lumina will be back in a few seconds");
+            currentBandwidth = bandwidth();
+        }
+
         if (currentBandwidth < 0) return -1;
         double bytesPerParam = quantized / 8.0;
         double modelSizeInGB = param * bytesPerParam * OVERHEAD_FACTOR;
@@ -79,7 +97,6 @@ public class SystemAssess {
         System.out.println("Estimated tokens/sec for " + param + "B Q" + quantized + ": " + String.format("%.2f", tokenestimate));
         return tokenestimate;
     }
-
     public boolean willitfit(double param, int quantized) {
         double bytesPerParam = quantized / 8.0;
         double modelSizeInGB = param * bytesPerParam * OVERHEAD_FACTOR;

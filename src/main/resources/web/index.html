@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lumina - Local LLM Store & Hardware Benchmarks</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --bg-card: rgba(18, 24, 38, 0.75);
+      --bg-card-hover: rgba(28, 36, 56, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(99, 102, 241, 0.3);
+      --accent-primary: #6366f1;
+      --accent-secondary: #a855f7;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --radius-lg: 16px;
+      --radius-md: 10px;
+      --radius-sm: 6px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.10) 0%, transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.05) 0%, transparent 60%);
+      background-attachment: fixed;
+      line-height: 1.5;
+    }
+
+    /* Layout Containers */
+    .app-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    /* Header Styling */
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1.5rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .brand-logo {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
+    }
+
+    .brand-title {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #ffffff 30%, #a5b4fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* System Stats Banner */
+    .system-stats {
+      display: flex;
+      gap: 1.25rem;
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius-lg);
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      padding: 0 0.5rem;
+    }
+
+    .stat-item:not(:last-child) {
+      border-right: 1px solid var(--border-color);
+      padding-right: 1.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .stat-value .unit {
+      font-size: 0.75rem;
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    /* Control Panel */
+    .controls-panel {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+      margin-bottom: 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .search-box {
+      position: relative;
+      flex: 1 1 300px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 0.75rem 1rem 0.75rem 2.6rem;
+      background: rgba(10, 14, 24, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: #fff;
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .search-box input:focus {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .search-box svg {
+      position: absolute;
+      left: 0.85rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .filter-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .filter-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.5rem 0.85rem;
+      border-radius: var(--radius-md);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .filter-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    .filter-btn.active {
+      background: var(--accent-primary);
+      color: #fff;
+      border-color: var(--accent-primary);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .select-dropdown {
+      background: rgba(10, 14, 24, 0.7);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.5rem 0.85rem;
+      border-radius: var(--radius-md);
+      font-size: 0.82rem;
+      font-weight: 600;
+      outline: none;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .select-dropdown:focus {
+      border-color: var(--accent-primary);
+    }
+
+    /* Model Grid */
+    .model-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .model-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .model-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-cyan));
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .model-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-glow);
+      transform: translateY(-4px);
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .model-card:hover::before {
+      opacity: 1;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+    }
+
+    .model-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.25rem;
+      word-break: break-word;
+    }
+
+    .model-file {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: rgba(0, 0, 0, 0.3);
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-sm);
+      display: inline-block;
+      margin-bottom: 1rem;
+      word-break: break-all;
+    }
+
+    .speed-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      font-weight: 800;
+      font-size: 0.95rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      white-space: nowrap;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+    }
+
+    .speed-badge.medium {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: #fbbf24;
+    }
+
+    .speed-badge.slow {
+      background: rgba(168, 85, 247, 0.12);
+      border-color: rgba(168, 85, 247, 0.3);
+      color: #c084fc;
+    }
+
+    .tags-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .tag {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .tag-param {
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .tag-quant {
+      background: rgba(6, 182, 212, 0.15);
+      color: #67e8f9;
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    .tag-fit {
+      background: rgba(16, 185, 129, 0.15);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .tag-fit.warn {
+      background: rgba(244, 63, 94, 0.15);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    .pros-cons {
+      margin-bottom: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      font-size: 0.83rem;
+    }
+
+    .pro-item {
+      color: #d1d5db;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.4rem;
+    }
+
+    .pro-item::before {
+      content: '✓';
+      color: var(--accent-emerald);
+      font-weight: bold;
+    }
+
+    .con-item {
+      color: var(--text-muted);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.4rem;
+    }
+
+    .con-item::before {
+      content: '⚠';
+      color: var(--accent-amber);
+      font-size: 0.8rem;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: auto;
+    }
+
+    .btn-install {
+      flex: 1;
+      background: linear-gradient(135deg, var(--accent-primary), #4f46e5);
+      color: #fff;
+      border: none;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-md);
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+      font-family: inherit;
+    }
+
+    .btn-install:hover {
+      background: linear-gradient(135deg, #4f46e5, #4338ca);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+    }
+
+    .btn-install:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-hf {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-hf:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+
+    /* Installation Terminal Drawer */
+    .terminal-drawer {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      width: 480px;
+      max-width: calc(100vw - 4rem);
+      background: #0b0f19;
+      border: 1px solid var(--border-glow);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      overflow: hidden;
+      display: none;
+      flex-direction: column;
+      backdrop-filter: blur(20px);
+    }
+
+    .terminal-drawer.visible {
+      display: flex;
+      animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(100px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .terminal-header {
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.75rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .terminal-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #fff;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .terminal-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+
+    .terminal-body {
+      padding: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: #38bdf8;
+      background: #05070c;
+      height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .log-line {
+      word-break: break-all;
+      line-height: 1.4;
+    }
+
+    .log-line.success {
+      color: var(--accent-emerald);
+      font-weight: bold;
+    }
+
+    .log-line.error {
+      color: var(--accent-rose);
+      font-weight: bold;
+    }
+
+    /* Empty state */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+    }
+
+    .empty-state h3 {
+      font-size: 1.3rem;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Toast Notification */
+    .toast-container {
+      position: fixed;
+      top: 1.5rem;
+      right: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      z-index: 2000;
+    }
+
+    .toast {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 0.85rem 1.25rem;
+      border-radius: var(--radius-md);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.88rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      backdrop-filter: blur(12px);
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Top Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-logo">⚡</div>
+        <div>
+          <h1 class="brand-title">Lumina LLM Hub</h1>
+          <p class="brand-subtitle">Local Execution & Hardware Bandwidth Benchmarks</p>
+        </div>
+      </div>
+
+      <div class="system-stats">
+        <div class="stat-item">
+          <span class="stat-label">System Bandwidth</span>
+          <span class="stat-value" id="sys-bandwidth">-- <span class="unit">GB/s</span></span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Catalog Models</span>
+          <span class="stat-value" id="sys-count">32</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Install Location</span>
+          <span class="stat-value" style="font-size: 0.85rem; font-family: 'JetBrains Mono';">./models/</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Interactive Controls Bar -->
+    <div class="controls-panel">
+      <div class="search-box">
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        <input type="text" id="searchInput" placeholder="Search models by name, size (e.g. 7B), vendor...">
+      </div>
+
+      <div class="filter-group">
+        <button class="filter-btn active" data-param="all">All Sizes</button>
+        <button class="filter-btn" data-param="small">&lt; 4B</button>
+        <button class="filter-btn" data-param="medium">4B - 10B</button>
+        <button class="filter-btn" data-param="large">&gt; 10B</button>
+      </div>
+
+      <div class="filter-group">
+        <button class="filter-btn active" data-quant="all">All Quants</button>
+        <button class="filter-btn" data-quant="Q4">Q4</button>
+        <button class="filter-btn" data-quant="Q8">Q8</button>
+      </div>
+
+      <select class="select-dropdown" id="sortSelect">
+        <option value="ts-desc">Sort by Speed (Fastest First)</option>
+        <option value="param-asc">Sort by Size (Smallest First)</option>
+        <option value="name-asc">Sort by Name</option>
+      </select>
+    </div>
+
+    <!-- Models Grid -->
+    <div class="model-grid" id="modelGrid">
+      <!-- Dynamically populated -->
+    </div>
+  </div>
+
+  <!-- Terminal Live Console Drawer -->
+  <div class="terminal-drawer" id="terminalDrawer">
+    <div class="terminal-header">
+      <div class="terminal-title">
+        <div class="spinner" id="terminalSpinner"></div>
+        <span id="terminalTitle">Installing Model...</span>
+      </div>
+      <button class="terminal-close" id="terminalClose">&times;</button>
+    </div>
+    <div class="terminal-body" id="terminalBody">
+      <div class="log-line">[Lumina] Initializing Java process...</div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    let modelsData = [];
+    let activeParamFilter = 'all';
+    let activeQuantFilter = 'all';
+    let currentBandwidth = 37.32;
+
+    // Fetch System Info & Models
+    async function loadData() {
+      try {
+        const sysRes = await fetch('/api/system');
+        if (sysRes.ok) {
+          const sysData = await sysRes.json();
+          currentBandwidth = sysData.bandwidth || 37.32;
+          document.getElementById('sys-bandwidth').innerHTML = `${currentBandwidth.toFixed(2)} <span class="unit">GB/s</span>`;
+        }
+
+        const modelsRes = await fetch('/api/models');
+        if (modelsRes.ok) {
+          modelsData = await modelsRes.json();
+          document.getElementById('sys-count').innerText = modelsData.length;
+          renderGrid();
+        }
+      } catch (err) {
+        showToast('Error connecting to Lumina server: ' + err.message, 'error');
+      }
+    }
+
+    // Render Grid with filtering and sorting
+    function renderGrid() {
+      const grid = document.getElementById('modelGrid');
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const sort = document.getElementById('sortSelect').value;
+
+      let filtered = modelsData.filter(m => {
+        // Search text matching
+        const textMatch = m.name.toLowerCase().includes(search) ||
+                          m.filename_pattern.toLowerCase().includes(search) ||
+                          m.pros.toLowerCase().includes(search);
+        if (!textMatch) return false;
+
+        // Param filter
+        const paramVal = parseFloat(m.parameters) || 7.0;
+        if (activeParamFilter === 'small' && paramVal >= 4) return false;
+        if (activeParamFilter === 'medium' && (paramVal < 4 || paramVal > 10)) return false;
+        if (activeParamFilter === 'large' && paramVal <= 10) return false;
+
+        // Quant filter
+        if (activeQuantFilter === 'Q4' && !m.quantization.includes('Q4')) return false;
+        if (activeQuantFilter === 'Q8' && !m.quantization.includes('Q8')) return false;
+
+        return true;
+      });
+
+      // Sorting
+      filtered.sort((a, b) => {
+        if (sort === 'ts-desc') return (b.estimated_ts || 0) - (a.estimated_ts || 0);
+        if (sort === 'param-asc') return (parseFloat(a.parameters)||0) - (parseFloat(b.parameters)||0);
+        if (sort === 'name-asc') return a.name.localeCompare(b.name);
+        return 0;
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state">
+            <h3>No models match your filter</h3>
+            <p>Try searching for a different term or clearing your size/quantization filters.</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(m => {
+        const ts = (m.estimated_ts || 0).toFixed(1);
+        let speedClass = '';
+        if (m.estimated_ts > 35) speedClass = '';
+        else if (m.estimated_ts > 15) speedClass = 'medium';
+        else speedClass = 'slow';
+
+        const fits = m.fits_hardware;
+
+        return `
+          <div class="model-card">
+            <div>
+              <div class="card-header">
+                <div>
+                  <h3 class="model-title">${escapeHtml(m.name.split('/')[1] || m.name)}</h3>
+                  <span class="model-file">${escapeHtml(m.filename_pattern)}</span>
+                </div>
+                <div class="speed-badge ${speedClass}">
+                  ⚡ ${ts} <span style="font-size:0.7rem;">t/s</span>
+                </div>
+              </div>
+
+              <div class="tags-row">
+                <span class="tag tag-param">${escapeHtml(m.parameters)}</span>
+                <span class="tag tag-quant">${escapeHtml(m.quantization.split(' ')[0])}</span>
+                <span class="tag tag-fit ${fits ? '' : 'warn'}">
+                  ${fits ? '✓ Fits Memory' : '⚠️ High VRAM'}
+                </span>
+                <span class="tag" style="background: rgba(168, 85, 247, 0.15); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.3);">
+                  💾 ${(m.estimated_size_gb || 0).toFixed(2)} GB
+                </span>
+              </div>
+
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #60a5fa; background: rgba(30, 58, 138, 0.25); padding: 0.35rem 0.6rem; border-radius: 6px; margin-bottom: 1.2rem; border: 1px solid rgba(96, 165, 250, 0.2); display: flex; align-items: center; justify-content: space-between;">
+                <span>🧮 ${currentBandwidth.toFixed(1)} GB/s ÷ ${(m.estimated_size_gb || 0).toFixed(2)} GB</span>
+                <strong style="color: #93c5fd;">= ${ts} t/s</strong>
+              </div>
+
+              <div class="pros-cons">
+                <div class="pro-item">${escapeHtml(m.pros)}</div>
+                <div class="con-item">${escapeHtml(m.cons)}</div>
+              </div>
+            </div>
+
+            <div class="card-actions">
+              <button class="btn-install" onclick="installModel(${m.id}, '${escapeJsString(m.filename_pattern)}')">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Install Model
+              </button>
+              <a href="${m.link}" target="_blank" class="btn-hf" title="Open Hugging Face">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z"/></svg>
+              </a>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Install trigger
+    let activePollInterval = null;
+
+    async function installModel(id, filename) {
+      const drawer = document.getElementById('terminalDrawer');
+      const body = document.getElementById('terminalBody');
+      const title = document.getElementById('terminalTitle');
+      const spinner = document.getElementById('terminalSpinner');
+
+      drawer.classList.add('visible');
+      title.innerText = `Installing: ${filename}`;
+      spinner.style.display = 'block';
+      body.innerHTML = `<div class="log-line">[Lumina] Triggering Java installer for Model ID ${id}...</div>`;
+
+      try {
+        const res = await fetch('/api/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: id })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          showToast(`Install started for Model #${id}`, 'info');
+          startPollingStatus();
+        } else {
+          body.innerHTML += `<div class="log-line error">❌ Error starting install: ${data.error}</div>`;
+          spinner.style.display = 'none';
+        }
+      } catch (err) {
+        body.innerHTML += `<div class="log-line error">❌ Request failed: ${err.message}</div>`;
+        spinner.style.display = 'none';
+      }
+    }
+
+    function startPollingStatus() {
+      if (activePollInterval) clearInterval(activePollInterval);
+
+      activePollInterval = setInterval(async () => {
+        try {
+          const res = await fetch('/api/status');
+          if (!res.ok) return;
+          const status = await res.json();
+
+          const body = document.getElementById('terminalBody');
+          const title = document.getElementById('terminalTitle');
+          const spinner = document.getElementById('terminalSpinner');
+
+          if (status.logs && status.logs.length > 0) {
+            body.innerHTML = status.logs.map(l => {
+              let cls = 'log-line';
+              if (l.includes('exited with code: 0') || l.includes('Successfully')) cls += ' success';
+              if (l.includes('Error') || l.includes('failed')) cls += ' error';
+              return `<div class="${cls}">${escapeHtml(l)}</div>`;
+            }).join('');
+            body.scrollTop = body.scrollHeight;
+          }
+
+          if (!status.isDownloading) {
+            clearInterval(activePollInterval);
+            spinner.style.display = 'none';
+            if (status.lastExitCode === 0) {
+              title.innerText = `Installation Complete!`;
+              showToast(`Model successfully downloaded to ./models/`, 'success');
+            } else if (status.lastExitCode !== null) {
+              title.innerText = `Installation Failed (Code ${status.lastExitCode})`;
+            }
+          }
+        } catch (e) {}
+      }, 1000);
+    }
+
+    // UI Helpers & Event Listeners
+    document.getElementById('searchInput').addEventListener('input', renderGrid);
+    document.getElementById('sortSelect').addEventListener('change', renderGrid);
+
+    document.querySelectorAll('.filter-group').forEach(group => {
+      group.addEventListener('click', e => {
+        if (!e.target.classList.contains('filter-btn')) return;
+        group.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+
+        if (e.target.dataset.param) activeParamFilter = e.target.dataset.param;
+        if (e.target.dataset.quant) activeQuantFilter = e.target.dataset.quant;
+        renderGrid();
+      });
+    });
+
+    document.getElementById('terminalClose').addEventListener('click', () => {
+      document.getElementById('terminalDrawer').classList.remove('visible');
+    });
+
+    function showToast(msg, type) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.innerText = msg;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function escapeJsString(str) {
+      if (!str) return '';
+      return str.replace(/'/g, "\\'");
+    }
+
+    // Initial Load
+    loadData();
+  </script>
+</body>
+</html>

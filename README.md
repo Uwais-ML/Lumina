@@ -4,23 +4,40 @@
 
 ## Key Features
 
-✅ **Real Hardware Benchmarking** - Tests actual model inference on your machine  
-✅ **Accurate t/s Predictions** - Within 5-10% of real token/second throughput  
-✅ **Bandwidth Calculation** - Learns your system's actual memory bandwidth from test models  
-✅ **Universal Model Support** - Predict t/s for any LLM (0.5B to 70B+ parameters)  
-✅ **Plug & Play** - Everything included; only Java required  
-✅ **Console Output** - Clear, real-time benchmark results  
+✅ **Real Hardware Benchmarking** - Tests actual model inference on your machine
+✅ **Accurate t/s Predictions** - Within 5-10% of real token/second throughput
+✅ **Bandwidth Calculation** - Learns your system's actual memory bandwidth from test models
+✅ **Universal Model Support** - Predict t/s for any LLM (0.5B to 70B+ parameters)
+✅ **Plug & Play** - Java, Python, and the JRE all ship inside the package — nothing to install
+✅ **Console Output** - Clear, real-time benchmark results
 
 ---
 
 ## Requirements
 
-- **Java 11+** (only requirement)
 - **macOS or Windows** (Linux coming soon)
 - ~3GB free disk space (for test models)
 - Reasonable RAM/VRAM (depends on your system)
 
-> Everything else (Python interpreter, llamafile, pre-built models) is included in the package.
+> Nothing else is required. Lumina bundles its own Java Runtime Environment (JRE) and Python interpreter — you do **not** need Java or Python installed on your system. Everything (interpreter, JRE, llamafile, pre-built models) is included in the package.
+
+### Bundled runtimes
+
+Lumina ships pre-bundled, platform-specific runtimes so it runs identically out of the box on any supported machine. You never need to touch these directly, but it's worth knowing where they live if you're troubleshooting or scripting against them:
+
+**Python (bundled interpreter):**
+| Platform | Path |
+|---|---|
+| macOS (Intel) | `python-dependencies/macos-intel/bin/python3` |
+| Windows | `python-dependencies/windows/python.exe` |
+
+**JRE (bundled Java runtime):**
+| Platform | Path |
+|---|---|
+| macOS (Intel) | `Jre/Mac-intel/jdk-25.0.4+7-jre/Contents` |
+| Windows | `Jre/Windows/jdk-25.0.4+7-jre` |
+
+All `java` and `python` commands in this README refer to these bundled binaries, not any system-wide install.
 
 ---
 
@@ -28,7 +45,7 @@
 
 ### Download Test Models
 
-Before running benchmarks, you need to download the 3 test models. Run the appropriate command for your system:
+Before running benchmarks, you need to download the 3 test models. Run the appropriate command for your system using the **bundled Python interpreter**:
 
 **macOS:**
 ```bash
@@ -62,7 +79,7 @@ Successfully downloaded to: ./src/main/java/com/example/LLMs/...
 All processing loops complete!
 ```
 
-⏱️ **Time:** 5-15 minutes depending on internet speed  
+⏱️ **Time:** 5-15 minutes depending on internet speed
 💾 **Space:** ~1.5GB total
 
 > Do this **once**. After models are downloaded, you won't need to run this again.
@@ -73,10 +90,16 @@ All processing loops complete!
 
 ### Step 2: Run Benchmark Tests
 
-The benchmark suite tests 3 standard models to measure your system's bandwidth:
+The benchmark suite tests 3 standard models to measure your system's bandwidth, using the **bundled JRE**:
 
+**macOS:**
 ```bash
-java -cp ".:lib/*" com.example.Runit
+Jre/Mac-intel/jdk-25.0.4+7-jre/Contents/Home/bin/java -cp ".:lib/*" com.example.Runit
+```
+
+**Windows:**
+```bash
+Jre\Windows\jdk-25.0.4+7-jre\bin\java -cp ".;lib/*" com.example.Runit
 ```
 
 **What happens:**
@@ -98,7 +121,7 @@ java -cp ".:lib/*" com.example.Runit
 
 ### Step 3: Assess Your System Performance
 
-Run the system assessment to calculate your system's bandwidth:
+Run the system assessment to calculate your system's bandwidth (again, using the bundled JRE):
 
 ```bash
 java -cp ".:lib/*" com.example.madefile
@@ -159,7 +182,7 @@ If you want to benchmark a specific model from HuggingFace:
    ```java
    int modelId = 2;  // Change to your model ID
    ```
-4. **Run the downloader:**
+4. **Run the downloader** (uses the bundled JRE to launch, which internally shells out to the bundled Python interpreter for the actual download):
    ```bash
    java -cp ".:lib/*" com.example.downloadmodel
    ```
@@ -212,7 +235,12 @@ Lumina/
 ├── PythonFile/
 │   ├── DownloadModel.py        ← Single model downloader
 │   └── downloadbasemodels.py   ← Test model bulk downloader
-├── python-dependencies/        ← Pre-built Python (don't touch)
+├── python-dependencies/        ← Pre-bundled Python runtime (don't touch)
+│   ├── macos-intel/bin/python3 ← Bundled interpreter for macOS
+│   └── windows/python.exe      ← Bundled interpreter for Windows
+├── Jre/                        ← Pre-bundled JRE (don't touch)
+│   ├── Mac-intel/jdk-25.0.4+7-jre/Contents  ← Bundled JRE for macOS
+│   └── Windows/jdk-25.0.4+7-jre             ← Bundled JRE for Windows
 ├── Llamafile/                  ← Pre-built llamafile binary (don't touch)
 └── README.md
 ```
@@ -228,7 +256,7 @@ Lumina/
 
 ## Accuracy & Limitations
 
-✅ **Accuracy:** t/s predictions are within **5-10% of real inference speed**  
+✅ **Accuracy:** t/s predictions are within **5-10% of real inference speed**
 ⚠️ **Current Limitations:**
 - macOS & Windows only (Linux coming soon)
 - Console output only (UI/UX planned)
@@ -255,6 +283,11 @@ taskkill /PID <PID> /F
 - Check internet connection
 - Ensure `~/.cache/huggingface/` has write permissions
 - Verify HuggingFace is not rate-limiting your IP
+- Confirm you're invoking the bundled Python interpreter (`python-dependencies/macos-intel/bin/python3` or `python-dependencies/windows/python.exe`), not a system Python
+
+### "java: command not found" or wrong Java version
+- Lumina bundles its own JRE — you should not need a system-wide Java install
+- Point your `java` calls at the bundled JRE path (`Jre/Mac-intel/jdk-25.0.4+7-jre/Contents` on macOS, `Jre/Windows/jdk-25.0.4+7-jre` on Windows) rather than relying on `PATH`
 
 ### Low t/s results
 - Close other applications consuming CPU/GPU
@@ -267,7 +300,7 @@ taskkill /PID <PID> /F
 
 🚀 **Coming Soon:**
 - Full LM Store with 50+ models, VRAM predictions, comparisons
-- Linux support
+- Linux support (with its own bundled Python/JRE runtimes)
 - Web-based UI/UX dashboard
 - Real-time benchmark graphs
 - Model recommendation engine
@@ -301,5 +334,5 @@ Your bandwidth: 18.3 GB/s
 
 ---
 
-**Lumina v1.0** - Benchmark your local LLMs accurately.  
-Made for developers who care about real-world performance.
+**Lumina v1.0** - Benchmark your local LLMs accurately.
+Made for developers who care about real-world performance. No Java or Python install required — it's all bundled in.

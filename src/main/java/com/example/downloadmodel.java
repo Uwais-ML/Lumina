@@ -12,7 +12,7 @@ public class downloadmodel {
         }
     }
 
-    public static void downloadmodel(int id) throws Exception {
+    public static Process downloadmodel(int id) throws Exception {
         List<String> llminfo = LLM.llmsearch(id);
         if (llminfo != null){
             String link = llminfo.get(0);
@@ -50,7 +50,7 @@ public class downloadmodel {
                 scriptPath,
                 repoId,
                 filename,
-                "./models/"
+                "src/main/java/com/example/LLMs/"
             );
             
             pb.directory(new File(projectRoot));
@@ -61,10 +61,9 @@ public class downloadmodel {
             int exitCode = process.waitFor();
             System.out.println("Download process exited with code: " + exitCode);
         }
+        return process;
     }
 
-    public static void main(String[] args) throws Exception {
-        int modelId = 2;
-        downloadmodel(modelId);
-    }
 }
+
+
