@@ -1,338 +1,171 @@
-# Lumina - Local AI IDE Environment
+# ⚡ Lumina AI Engine
 
-**Lumina** is a lightweight benchmarking tool for local Large Language Models (LLMs). It runs models back-to-back to generate real, hardware-specific performance metrics (tokens/second). Using these benchmarks, you can predict inference speed for any model on your system.
+**Lumina** is a self-contained, cross-platform local LLM infrastructure, hardware performance predictor, and Agentic RAG engine. It delivers zero-dependency, local-first AI execution with an integrated Web Store dashboard, real-time code completion server, and hardware bandwidth predictor.
 
-## Key Features
-
-✅ **Real Hardware Benchmarking** - Tests actual model inference on your machine
-✅ **Accurate t/s Predictions** - Within 5-10% of real token/second throughput
-✅ **Bandwidth Calculation** - Learns your system's actual memory bandwidth from test models
-✅ **Universal Model Support** - Predict t/s for any LLM (0.5B to 70B+ parameters)
-✅ **Plug & Play** - Java, Python, and the JRE all ship inside the package — nothing to install
-✅ **Console Output** - Clear, real-time benchmark results
+Lumina is **100% self-sustained** — shipping with pre-bundled JREs, embedded Python environments, pre-packaged Java libraries (`./lib/`), and an OS-agnostic dynamic dispatcher.
 
 ---
 
-## Requirements
+## ⚡ Coming Soon: Lumina SmartSwitch™
 
-- **macOS or Windows** (Linux coming soon)
-- ~3GB free disk space (for test models)
-- Reasonable RAM/VRAM (depends on your system)
-
-> Nothing else is required. Lumina bundles its own Java Runtime Environment (JRE) and Python interpreter — you do **not** need Java or Python installed on your system. Everything (interpreter, JRE, llamafile, pre-built models) is included in the package.
-
-### Bundled runtimes
-
-Lumina ships pre-bundled, platform-specific runtimes so it runs identically out of the box on any supported machine. You never need to touch these directly, but it's worth knowing where they live if you're troubleshooting or scripting against them:
-
-**Python (bundled interpreter):**
-| Platform | Path |
-|---|---|
-| macOS (Intel) | `python-dependencies/macos-intel/bin/python3` |
-| Windows | `python-dependencies/windows/python.exe` |
-
-**JRE (bundled Java runtime):**
-| Platform | Path |
-|---|---|
-| macOS (Intel) | `Jre/Mac-intel/jdk-25.0.4+7-jre/Contents` |
-| Windows | `Jre/Windows/jdk-25.0.4+7-jre` |
-
-All `java` and `python` commands in this README refer to these bundled binaries, not any system-wide install.
+> [!IMPORTANT]
+> **SmartSwitch™ (In Active Development)**
+> An intelligent model routing engine that dynamically evaluates prompt complexity, real-time hardware memory pressure (VRAM/RAM), and target latency requirements. SmartSwitch automatically routes requests on-the-fly between sub-second lightweight models (e.g., Qwen 0.5B) and heavy reasoning models (e.g., Llama 3B / DeepSeek) with zero manual intervention.
 
 ---
 
-## Setup (First Time Only)
+## 📐 System Architecture
 
-### Download Test Models
-
-Before running benchmarks, you need to download the 3 test models. Run the appropriate command for your system using the **bundled Python interpreter**:
-
-**macOS:**
-```bash
-python-dependencies/macos-intel/bin/python3 -u PythonFile/downloadbasemodels.py
 ```
-
-**Windows:**
-```bash
-python-dependencies/windows/python.exe -u PythonFile/downloadbasemodels.py
-```
-
-**What happens:**
-- Downloads Llama 3.2 1B (Q4_K_M)
-- Downloads Qwen 2.5 1.5B Coder (Q4_K_M)
-- Downloads Qwen 2.5 0.5B (Q4_K_M)
-- Saves them to `src/main/java/com/example/LLMs/`
-- Creates the HuggingFace cache directory
-
-**Expected Output:**
-```
-[1/3] Starting download for: Llama-3.2-1B-Instruct-Q4_K_M.gguf
-From Repository: bartowski/Llama-3.2-1B-Instruct-GGUF
-Successfully downloaded to: ./src/main/java/com/example/LLMs/...
-
-[2/3] Starting download for: qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
-...
-
-[3/3] Starting download for: qwen2.5-0.5b-instruct-q4_k_m.gguf
-...
-
-All processing loops complete!
-```
-
-⏱️ **Time:** 5-15 minutes depending on internet speed
-💾 **Space:** ~1.5GB total
-
-> Do this **once**. After models are downloaded, you won't need to run this again.
-
----
-
-## Quick Start
-
-### Step 2: Run Benchmark Tests
-
-The benchmark suite tests 3 standard models to measure your system's bandwidth, using the **bundled JRE**:
-
-**macOS:**
-```bash
-Jre/Mac-intel/jdk-25.0.4+7-jre/Contents/Home/bin/java -cp ".:lib/*" com.example.Runit
-```
-
-**Windows:**
-```bash
-Jre\Windows\jdk-25.0.4+7-jre\bin\java -cp ".;lib/*" com.example.Runit
-```
-
-**What happens:**
-- Llama 3.2 1B (Q4_K_M) runs 3 test prompts
-- Qwen 2.5 1.5B Coder (Q4_K_M) runs 3 test prompts
-- Qwen 2.5 0.5B (Q4_K_M) runs 3 test prompts
-- Each test outputs **tokens/second** performance
-- Console shows: model name → prompt → response → speed (tokens/sec)
-
-**Expected Output Example:**
-```
-[Launcher] Starting Model 1 on port 54321
-[API Response] Speed: 45.67 tokens/sec
-[Launcher] Starting Model 2 on port 54322
-[API Response] Speed: 52.34 tokens/sec
-[Launcher] Starting Model 3 on port 54323
-[API Response] Speed: 78.23 tokens/sec
-```
-
-### Step 3: Assess Your System Performance
-
-Run the system assessment to calculate your system's bandwidth (again, using the bundled JRE):
-
-```bash
-java -cp ".:lib/*" com.example.madefile
-```
-
-**What happens:**
-- Processes the t/s numbers from Step 1
-- Calculates actual **memory bandwidth** (GB/s) of your system
-- Displays: Raw t/s array, calculated bandwidth, and timestamp
-
-**Example Output:**
-```
-Raw Token/s Array: [45.67, 52.34, 78.23, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-Calculated True Bandwidth: 18.340 GB/s
-Estimated tokens/sec for 7.0B Q4.83: 145.23
-```
-
-### Step 4: Predict t/s for Any Model
-
-Edit `madefile.java` and change the parameters in the `estimate()` call:
-
-```java
-double tokenestimate = sys.estimate(7, 4.83);
-```
-
-**Parameters:**
-- `7` = Model parameter count in **billions** (e.g., 7B model)
-- `4.83` = Quantization factor in **bits** (e.g., 4.83 for Q4, 2.4 for Q2_K, 8 for FP8)
-
-**Common Quantization Factors:**
-- Q2_K: `2.4`
-- Q3_K_M: `3.35`
-- Q4_K_M: `4.83` ← Most common
-- Q5_K_M: `5.51`
-- Q6_K: `6.56`
-- Q8: `8.0`
-- FP16: `16.0`
-
-**Example: Predict Llama 2 70B Q4_K_M:**
-```java
-double tokenestimate = sys.estimate(70, 4.83);  // ~14.52 tokens/sec
-```
-
-Then run:
-```bash
-java -cp ".:lib/*" com.example.madefile
+                               ┌─────────────────────────┐
+                               │     User Interface      │
+                               │  (CLI / Web Store UI)   │
+                               └────────────┬────────────┘
+                                            │
+                               ┌────────────▼────────────┐
+                               │   Lumina CLI Engine     │
+                               │      (Lumina.py)        │
+                               └────────────┬────────────┘
+                                            │
+               ┌────────────────────────────┼────────────────────────────┐
+               │                            │                            │
+   ┌───────────▼───────────┐    ┌───────────▼───────────┐    ┌───────────▼───────────┐
+   │ Lumina Web Backend    │    │ Hardware Predictor    │    │ Local RAG Engine      │
+   │ (LuminaWebServer)     │    │ (SystemAssess + OSHI) │    │ (LangChain + Chroma)  │
+   └───────────┬───────────┘    └───────────┬───────────┘    └───────────┬───────────┘
+               │                            │                            │
+               └────────────────────────────┼────────────────────────────┘
+                                            │
+                               ┌────────────▼────────────┐
+                               │ Local Inference Engine  │
+                               │  (llamafile / GGUF)     │
+                               └─────────────────────────┘
 ```
 
 ---
 
-## Downloading Custom Models (Advanced)
+## 🔬 How Lumina Works: Technical Deep Dive
 
-If you want to benchmark a specific model from HuggingFace:
+### 1. Dynamic OS Detection & Runtime Resolution (`Lumina.py`)
+Rather than relying on global system environment variables (`JAVA_HOME`, `PATH`), `Lumina.py` inspects the host operating system at startup:
+- **OS Identification**: Distinguishes between `macos`, `windows`, and `linux`.
+- **Runtime Resolution**: Dynamically maps to the correct bundled JRE (`Jre/Mac-intel/...` or `Jre/Windows/...`) and Python environment (`python-dependencies/...`).
+- **Classpath Assembly**: Assembles a self-contained Java classpath from `./target/classes` and `./lib/*.jar` without requiring Maven at runtime.
 
-1. **Open `llmstore.json`** in `src/main/java/com/example/resources/jsonfiles/`
-2. **Find your model** and note its ID
-3. **Update `downloadmodel.java`:**
-   ```java
-   int modelId = 2;  // Change to your model ID
-   ```
-4. **Run the downloader** (uses the bundled JRE to launch, which internally shells out to the bundled Python interpreter for the actual download):
-   ```bash
-   java -cp ".:lib/*" com.example.downloadmodel
-   ```
+### 2. Hardware Sensing & Bandwidth Predictor (`SystemAssess.java`)
+Local LLM execution speed on CPU/unified memory is fundamentally memory-bandwidth bound. Lumina uses **OSHI (Operating System and Hardware Information)** to query system hardware directly:
+- **Bandwidth Calculation**: Measures true memory throughput ($GB/s$) by executing test prompts against known model byte sizes ($GB$) and tracking prompt token generation speed:
+  $$\text{Memory Bandwidth (GB/s)} = \frac{\text{Model Size (GB)} \times \text{Tokens/sec}}{\text{Pass Count}}$$
+- **Fitting Algorithm (`willitfit()`)**: Evaluates model parameter count and quantization bit-width to verify if the uncompressed weights fit within system VRAM/RAM:
+  $$\text{Model Size (GB)} = \text{Parameters (B)} \times \left(\frac{\text{Quantization Bits}}{8}\right)$$
 
-**Note:** Model Store (`llmstore.json`) is under development. For now, it's reference-only showing model pros/cons. Full integration coming soon.
+### 3. Portable Inference Engine (`Runit.java` & `llamafile`)
+Lumina uses an embedded **Llamafile** binary (`resources/llamafile/llamafile-0.10.4-thin`) to serve local `.gguf` weights:
+- **Background Server Binding**: Searches for an available local TCP port, spawns a background `llamafile` subprocess, and exposes an OpenAI-compatible HTTP endpoint (`http://127.0.0.1:<port>/v1/completions`).
+- **Process Isolation & Lifecycle**: Managed via Java `ProcessBuilder` with shutdown hooks ensuring zero orphaned processes upon termination.
 
----
+### 4. Multi-Threaded Web Server (`LuminaWebServer.java`)
+Built on Java's `com.sun.net.httpserver.HttpServer`:
+- **`GET /api/models`**: Reads model catalog from `resources/llmstore.json`, runs hardware fit analysis, and returns computed token speed predictions.
+- **`GET /api/system`**: Returns host OS, CPU architecture, and measured bandwidth.
+- **`POST /api/complete`**: Receives prompt completions from the IDE Web UI and proxies them to the active local Llamafile instance.
+- **`POST /api/install`**: Executes background HuggingFace model downloads with live SSE log streaming (`GET /api/status`).
 
-## Understanding the Benchmark
-
-### How It Works
-
-1. **Three test models** (0.5B, 1B, 1.5B Q4_K_M) run on your hardware
-2. Each model processes the same prompts and records **tokens/second**
-3. Lumina calculates your system's **actual memory bandwidth** from these results
-4. Using bandwidth, you can **predict t/s for ANY model** using the formula:
-
-```
-Predicted t/s = System Bandwidth (GB/s) / Model Size (GB)
-```
-
-### Example Workflow
-
-**Your System:**
-- Bandwidth: 18.3 GB/s (calculated from test models)
-
-**Predict for Mistral 7B Q4_K_M:**
-- Model size: 7B × (4.83 bits / 8) × 1.0 = 4.23 GB
-- Estimated t/s: 18.3 / 4.23 = **4.32 tokens/sec**
-
-**Predict for Llama 2 70B Q4_K_M:**
-- Model size: 70B × (4.83 bits / 8) × 1.0 = 42.26 GB
-- Estimated t/s: 18.3 / 42.26 = **0.43 tokens/sec**
+### 5. Local RAG & Agentic RAG Engine (`scripts/rag.py` & `scripts/agentic_rag.py`)
+Provides offline document retrieval and multi-step reasoning:
+- **Text Chunking**: Uses `RecursiveCharacterTextSplitter` (chunk size: 800, overlap: 80).
+- **Vector Storage**: Embeds chunks using HuggingFace BGE transformers and stores vectors in a local `chroma_db/` instance.
+- **Agentic Loop**: Executes iterative retrieval-augmented prompt engineering with structured logging written to `logs/Agentic.log`.
 
 ---
 
-## Project Structure
+## 🚀 Quick Start Guide
+
+Use the top-level wrapper (`./lumina` on macOS/Linux or `lumina.bat` on Windows):
+
+```bash
+# Display CLI menu and auto-detected system runtimes
+./lumina
+
+# 1. Launch the Lumina Web Server & Model Store Dashboard
+./lumina --models
+
+# 2. Run hardware benchmark across local GGUF models
+./lumina --bench
+
+# 3. Estimate hardware bandwidth and predicted token speed
+./lumina --assess
+
+# 4. Run local RAG vector store pipeline
+./lumina --rag
+
+# 5. Run multi-step Agentic RAG reasoning engine
+./lumina --agentic
+
+# 6. Launch a specific GGUF model via llamafile server
+./lumina --launch Llama-3.2-1B-Instruct-Q4_K_M
+
+# 7. Download base test models
+./lumina --setup
+```
+
+---
+
+## 📁 Repository Structure
 
 ```
 Lumina/
-├── src/main/java/com/example/
-│   ├── Runit.java              ← Benchmark runner (3 test models)
-│   ├── SystemAssess.java       ← Bandwidth calculator
-│   ├── madefile.java           ← t/s predictor (EDIT THIS for predictions)
-│   ├── LLM.java                ← Model metadata loader
-│   ├── downloadmodel.java      ← Custom model downloader
-│   ├── LLMs/                   ← Test models stored here
-│   └── resources/jsonfiles/
-│       └── llmstore.json       ← Model reference (in development)
-├── PythonFile/
-│   ├── DownloadModel.py        ← Single model downloader
-│   └── downloadbasemodels.py   ← Test model bulk downloader
-├── python-dependencies/        ← Pre-bundled Python runtime (don't touch)
-│   ├── macos-intel/bin/python3 ← Bundled interpreter for macOS
-│   └── windows/python.exe      ← Bundled interpreter for Windows
-├── Jre/                        ← Pre-bundled JRE (don't touch)
-│   ├── Mac-intel/jdk-25.0.4+7-jre/Contents  ← Bundled JRE for macOS
-│   └── Windows/jdk-25.0.4+7-jre             ← Bundled JRE for Windows
-├── Llamafile/                  ← Pre-built llamafile binary (don't touch)
-└── README.md
+├── Lumina.py                          # Dynamic OS detector & CLI dispatcher
+├── lumina                             # Executable CLI script (macOS/Linux)
+├── lumina.bat                         # Executable Batch script (Windows)
+├── SWAPPABLE.md                       # Modular component swapping guide
+├── pom.xml                            # Maven build configuration
+├── README.md / LICENSE
+│
+├── src/
+│   ├── java/lumina/                   # Lumina Java source (package `lumina`)
+│   │   ├── LuminaWebServer.java       # Local HTTP server & REST API
+│   │   ├── SystemAssess.java          # OSHI hardware sensor & bandwidth predictor
+│   │   ├── Runit.java                 # Llamafile benchmark engine
+│   │   ├── LLM.java                   # Model metadata & store parser
+│   │   └── downloadmodel.java         # HuggingFace model downloader bridge
+│   ├── main/resources/web/            # Frontend Web UI (index.html, ide.html)
+│   └── test/java/lumina/              # Unit test suites
+│
+├── scripts/                           # Python RAG & Agentic scripts
+│   ├── rag.py                         # Text chunking, embedding & Chroma RAG
+│   ├── agentic_rag.py                 # Multi-step Agentic RAG reasoning engine
+│   ├── launch_model.py                # Llamafile model server launcher
+│   ├── download_base_models.py        # Base models downloader
+│   └── download_model.py              # HuggingFace hub model downloader
+│
+├── models/                            # Local GGUF model files (.gguf)
+├── resources/                         # Shared project assets
+│   ├── bandwidth.txt                  # Measured system memory bandwidth
+│   ├── llmstore.json                  # Model catalog & quantization specs
+│   ├── web/                           # Web assets (index.html, ide.html)
+│   └── llamafile/                     # Portable Llamafile executable
+│
+├── lib/                               # Bundled Java dependencies (OSHI, Jackson, JNA, Requests)
+├── logs/                              # Execution & Agentic RAG log directory
+├── chroma_db/                         # Local Chroma vector database
+├── Jre/                               # Bundled JRE runtimes (Mac-intel, Windows)
+└── python-dependencies/               # Bundled Python runtimes (Mac-intel, Windows)
 ```
 
 ---
 
-## Model Storage
+## 🔄 Swappable Architecture
 
-- **Test Models (0.5B, 1B, 1.5B):** Stored in `src/main/java/com/example/LLMs/`
-- **Custom Downloaded Models:** Stored in HuggingFace's cache (`~/.cache/huggingface/`)
-
----
-
-## Accuracy & Limitations
-
-✅ **Accuracy:** t/s predictions are within **5-10% of real inference speed**
-⚠️ **Current Limitations:**
-- macOS & Windows only (Linux coming soon)
-- Console output only (UI/UX planned)
-- LLM Store under development
-- Requires stable internet for first run (model download)
+Lumina is designed to be fully modular. See **[`SWAPPABLE.md`](file:///Users/apple/Lumina/SWAPPABLE.md)** for step-by-step instructions on how to swap:
+- **GGUF Models**: Drop new models directly into `models/`.
+- **Inference Engines**: Replace Llamafile with Ollama, vLLM, or `llama-server`.
+- **Vector DB & Embeddings**: Swap Chroma for FAISS, Qdrant, or custom embeddings.
+- **Runtimes**: Swap bundled JRE or CPython versions.
+- **Frontend UI**: Edit HTML/CSS/JS in `resources/web/`.
 
 ---
 
-## Troubleshooting
+## 📄 License
 
-### "Port already in use" error
-Multiple instances may be running. Kill lingering processes:
-```bash
-# macOS/Linux
-lsof -i :54321
-kill -9 <PID>
-
-# Windows
-netstat -ano | findstr :54321
-taskkill /PID <PID> /F
-```
-
-### Models not downloading
-- Check internet connection
-- Ensure `~/.cache/huggingface/` has write permissions
-- Verify HuggingFace is not rate-limiting your IP
-- Confirm you're invoking the bundled Python interpreter (`python-dependencies/macos-intel/bin/python3` or `python-dependencies/windows/python.exe`), not a system Python
-
-### "java: command not found" or wrong Java version
-- Lumina bundles its own JRE — you should not need a system-wide Java install
-- Point your `java` calls at the bundled JRE path (`Jre/Mac-intel/jdk-25.0.4+7-jre/Contents` on macOS, `Jre/Windows/jdk-25.0.4+7-jre` on Windows) rather than relying on `PATH`
-
-### Low t/s results
-- Close other applications consuming CPU/GPU
-- Check system temperature (throttling?)
-- Lower `max_tokens` in `Runit.java` prompts if system overloads
-
----
-
-## Future Roadmap
-
-🚀 **Coming Soon:**
-- Full LM Store with 50+ models, VRAM predictions, comparisons
-- Linux support (with its own bundled Python/JRE runtimes)
-- Web-based UI/UX dashboard
-- Real-time benchmark graphs
-- Model recommendation engine
-- API endpoint for programmatic access
-
----
-
-## How to Use This for Model Selection
-
-1. **Run benchmarks** on your hardware
-2. **Note your system bandwidth**
-3. **Use the estimator** to predict t/s for models you're interested in
-4. **Pick the best trade-off** between quality and speed for your use case
-
-**Example Decision:**
-```
-Your bandwidth: 18.3 GB/s
-- Llama 2 7B Q4: 4.3 t/s (fast, good quality)
-- Mistral 7B Q4: 4.3 t/s (fast, very good quality)
-- Llama 2 13B Q4: 2.1 t/s (slower, higher quality)
-→ Choose Mistral 7B if speed matters; Llama 13B if quality matters
-```
-
----
-
-## Getting Help
-
-- Check the **generated console output** for detailed timing information
-- Review `llmstore.json` for model pros/cons
-- Adjust parameters in `madefile.java` to experiment with different models
-
----
-
-**Lumina v1.0** - Benchmark your local LLMs accurately.
-Made for developers who care about real-world performance. No Java or Python install required — it's all bundled in.
+Distributed under the Apache 2.0 License. See `LICENSE` for details.

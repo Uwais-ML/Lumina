@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lumina IDE</title>
+  <style>
+    .streaming-ghost-text {
+      opacity: 0.6;
+      font-style: italic;
+      color: #9cdcfe !important;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      overflow: hidden;
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* ── Header ── */
+    #header {
+      height: 40px;
+      flex-shrink: 0;
+      background-color: #252526;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      font-size: 14px;
+      border-bottom: 1px solid #3c3c3c;
+    }
+    #header .title { font-weight: 600; }
+    .status-msg {
+      margin-left: auto;
+      font-size: 12px;
+      color: #858585;
+    }
+    #run-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background-color: #0e639c;
+      color: white;
+      border: none;
+      padding: 5px 14px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 3px;
+      transition: background 0.15s;
+    }
+    #run-btn:hover { background-color: #1177bb; }
+    #run-btn.running { background-color: #6c7086; cursor: not-allowed; }
+    #run-btn svg { width: 13px; height: 13px; fill: currentColor; }
+
+    .port-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #858585;
+      border: 1px solid #3c3c3c;
+      border-radius: 3px;
+      padding: 3px 8px;
+      background: #1e1e1e;
+    }
+    .port-group label { white-space: nowrap; }
+    .port-group input {
+      width: 62px;
+      background: transparent;
+      border: none;
+      color: #c8d3f5;
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      outline: none;
+    }
+
+    /* ── Main split area ── */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #editor-container {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Resize handle ── */
+    #resize-handle {
+      height: 5px;
+      flex-shrink: 0;
+      background: #3c3c3c;
+      cursor: ns-resize;
+      position: relative;
+    }
+    #resize-handle:hover, #resize-handle.dragging {
+      background: #0078d4;
+    }
+
+    /* ── Output panel ── */
+    #output-panel {
+      height: 200px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      background-color: #0d1117;
+      border-top: 1px solid #3c3c3c;
+    }
+    #output-panel-header {
+      height: 30px;
+      flex-shrink: 0;
+      background: #252526;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #858585;
+      border-bottom: 1px solid #3c3c3c;
+    }
+    #output-panel-header .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #3c3c3c;
+      flex-shrink: 0;
+    }
+    #output-panel-header .dot.active { background: #10b981; }
+    #clear-btn {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: #858585;
+      cursor: pointer;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    #clear-btn:hover { background: rgba(255,255,255,0.08); color: #d4d4d4; }
+    #output-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 14px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #c8d3f5;
+    }
+    .out-line { margin-bottom: 1px; }
+    .out-line.prompt { color: #6a9955; }
+    .out-line.error  { color: #f47067; }
+    .out-line.info   { color: #858585; font-style: italic; }
+  </style>
+</head>
+<body>
+
+  <div id="header">
+    <span class="title">⚡ Lumina IDE</span>
+    <div class="status-msg" id="status">Press Shift+F to autocomplete</div>
+    <div class="port-group">
+      <label>Model port:</label>
+      <input type="number" id="model-port" value="49352" min="1" max="65535" placeholder="49352">
+    </div>
+    <button id="run-btn">
+      <svg viewBox="0 0 16 16"><path d="M3 2l11 6-11 6V2z"/></svg>
+      Run
+    </button>
+  </div>
+
+  <div id="main">
+    <div id="editor-container"></div>
+    <div id="resize-handle"></div>
+    <div id="output-panel">
+      <div id="output-panel-header">
+        <div class="dot" id="status-dot"></div>
+        Output
+        <button id="clear-btn">Clear</button>
+      </div>
+      <div id="output-body"><span class="out-line info">Ready. Press Run to execute your code.</span>
+</div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
+  <script>
+    require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
+
+    require(['vs/editor/editor.main'], function () {
+      /* ── Editor ── */
+      const editor = monaco.editor.create(document.getElementById('editor-container'), {
+        value: 'def hello_world():\n    print("Hello, world!")\n\nhello_world()\n',
+        language: 'python',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        minimap: { enabled: false },
+        fontSize: 14,
+        lineHeight: 22,
+        scrollBeyondLastLine: false,
+      });
+
+      /* Port is set manually by the user — no auto-discovery */
+
+      /* ── Output helpers ── */
+      const outputBody = document.getElementById('output-body');
+      const statusDot  = document.getElementById('status-dot');
+
+      function appendOutput(text, cls = '') {
+        const lines = text.split('\n');
+        lines.forEach((line, i) => {
+          if (i === lines.length - 1 && line === '') return; // trailing newline
+          const el = document.createElement('span');
+          el.className = 'out-line' + (cls ? ' ' + cls : '');
+          el.textContent = line;
+          outputBody.appendChild(el);
+          outputBody.appendChild(document.createTextNode('\n'));
+        });
+        outputBody.scrollTop = outputBody.scrollHeight;
+      }
+
+      function clearOutput() {
+        outputBody.innerHTML = '';
+      }
+
+      document.getElementById('clear-btn').addEventListener('click', clearOutput);
+
+      /* ── Runner ── */
+      const runBtn   = document.getElementById('run-btn');
+      const statusEl = document.getElementById('status');
+
+      runBtn.addEventListener('click', async () => {
+        if (runBtn.classList.contains('running')) return;
+
+        const code = editor.getValue();
+        clearOutput();
+        appendOutput('$ Running code…', 'prompt');
+
+        runBtn.classList.add('running');
+        runBtn.innerHTML = '<svg viewBox="0 0 16 16" style="fill:currentColor;width:13px;height:13px"><rect x="3" y="3" width="10" height="10" rx="1"/></svg> Running…';
+        statusDot.classList.add('active');
+        statusEl.innerText = 'Running…';
+
+        try {
+          const response = await fetch('/api/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: code
+          });
+
+          const data = await response.json();
+
+          if (data.output && data.output.trim().length > 0) {
+            appendOutput(data.output);
+          } else {
+            appendOutput('(no output)', 'info');
+          }
+
+          appendOutput('\n✅ Process finished.', 'prompt');
+          statusEl.innerText = 'Finished.';
+        } catch (e) {
+          appendOutput('❌ Error: ' + e.message, 'error');
+          statusEl.innerText = 'Error running code.';
+        } finally {
+          runBtn.classList.remove('running');
+          runBtn.innerHTML = '<svg viewBox="0 0 16 16" style="fill:currentColor;width:13px;height:13px"><path d="M3 2l11 6-11 6V2z"/></svg> Run';
+          statusDot.classList.remove('active');
+          setTimeout(() => { statusEl.innerText = 'Press Shift+F to autocomplete'; }, 3000);
+        }
+      });
+
+      let acAbortController = null;
+      let ghostContextKey = editor.createContextKey('isStreamingGhost', false);
+      let ghostDecorations = editor.createDecorationsCollection([]);
+      let isGhosting = false;
+      let ghostStartPos = null;
+      let ghostTypingTimer = null;
+
+      async function triggerAutocomplete() {
+        if (acAbortController) acAbortController.abort();
+        acAbortController = new AbortController();
+
+        const model    = editor.getModel();
+        const position = editor.getPosition();
+        const offset   = model.getOffsetAt(position);
+        const prefix   = model.getValue().substring(0, offset);
+
+        if (prefix.trim().length < 3) {
+          statusEl.innerText = 'Need more code to complete.';
+          setTimeout(() => { statusEl.innerText = 'Press Shift+F to autocomplete'; }, 2000);
+          return;
+        }
+
+        const port = parseInt(document.getElementById('model-port').value) || 49352;
+        statusEl.innerText = '⏳ Completing… (Press Tab to confirm, Esc to cancel)';
+
+        ghostStartPos = position;
+        isGhosting = true;
+        ghostContextKey.set(true);
+        ghostDecorations.clear();
+
+        try {
+          const res = await fetch('/api/complete', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ prompt: prefix, port: port, stream: true }),
+            signal:  acAbortController.signal,
+          });
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const dataStr = line.slice(6).trim();
+                if (dataStr === '[DONE]') continue;
+                try {
+                  const data = JSON.parse(dataStr);
+                  const text = data.choices[0].text;
+                  if (text) {
+                    const currentPos = editor.getPosition();
+                    const currentOffset = model.getOffsetAt(currentPos);
+                    
+                    editor.executeEdits('lumina-stream', [{
+                      range: new monaco.Range(currentPos.lineNumber, currentPos.column, currentPos.lineNumber, currentPos.column),
+                      text: text
+                    }]);
+                    
+                    const newPos = model.getPositionAt(currentOffset + text.length);
+                    editor.setPosition(newPos);
+                    
+                    ghostDecorations.set([{
+                      range: new monaco.Range(ghostStartPos.lineNumber, ghostStartPos.column, newPos.lineNumber, newPos.column),
+                      options: {
+                        inlineClassName: 'streaming-ghost-text',
+                        stickiness: monaco.editor.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+                      }
+                    }]);
+                  }
+                } catch(e) {}
+              }
+            }
+          }
+          statusEl.innerText = '✅ Streaming finished (Tab to confirm, Esc to cancel)';
+        } catch (e) {
+          if (e.name !== 'AbortError') {
+            statusEl.innerText = '⚠ ' + e.message;
+          }
+        }
+      }
+
+
+
+      // Shift+F — manual trigger
+      editor.addAction({
+        id:           'lumina-autocomplete',
+        label:        'Lumina Autocomplete',
+        keybindings:  [monaco.KeyMod.Shift | monaco.KeyCode.KeyF],
+        run:          () => triggerAutocomplete(),
+      });
+
+      // Tab to confirm ghost text
+      editor.addAction({
+        id:           'confirm-ghost-text',
+        label:        'Confirm Ghost Text',
+        keybindings:  [monaco.KeyCode.Tab],
+        precondition: 'isStreamingGhost',
+        run: () => {
+          ghostContextKey.set(false);
+          isGhosting = false;
+          ghostDecorations.clear();
+          statusEl.innerText = '✅ Confirmed';
+          setTimeout(() => { statusEl.innerText = 'Press Shift+F to autocomplete'; }, 3000);
+        }
+      });
+
+      // Esc to cancel ghost text
+      editor.addAction({
+        id:           'cancel-ghost-text',
+        label:        'Cancel Ghost Text',
+        keybindings:  [monaco.KeyCode.Escape],
+        precondition: 'isStreamingGhost',
+        run: () => {
+          if (acAbortController) acAbortController.abort();
+          ghostContextKey.set(false);
+          isGhosting = false;
+          ghostDecorations.clear();
+          
+          const endPos = editor.getPosition();
+          editor.executeEdits('lumina-cancel', [{
+            range: new monaco.Range(ghostStartPos.lineNumber, ghostStartPos.column, endPos.lineNumber, endPos.column),
+            text: ''
+          }]);
+          editor.setPosition(ghostStartPos);
+          
+          statusEl.innerText = '❌ Cancelled';
+          setTimeout(() => { statusEl.innerText = 'Press Shift+F to autocomplete'; }, 3000);
+        }
+      });
+
+      /* ── Resize handle ── */
+      const handle      = document.getElementById('resize-handle');
+      const outputPanel = document.getElementById('output-panel');
+      let dragging = false, startY = 0, startH = 0;
+
+      handle.addEventListener('mousedown', (e) => {
+        dragging = true;
+        startY = e.clientY;
+        startH = outputPanel.offsetHeight;
+        handle.classList.add('dragging');
+        document.body.style.userSelect = 'none';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const delta = startY - e.clientY;
+        const newH  = Math.min(Math.max(startH + delta, 80), window.innerHeight - 160);
+        outputPanel.style.height = newH + 'px';
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        handle.classList.remove('dragging');
+        document.body.style.userSelect = '';
+      });
+    });
+  </script>
+</body>
+</html>
