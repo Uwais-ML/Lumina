@@ -4,3 +4,11 @@ models/
 **/.cache/
 .DS_Store
 **/.DS_Store
+
+# Large Python binary dependencies (torch, onnxruntime, chromadb native libs)
+python-dependencies/macos-intel/lib/python3.10/site-packages/torch*
+python-dependencies/macos-intel/lib/python3.10/site-packages/chromadb_rust_bindings*
+python-dependencies/macos-intel/lib/python3.10/site-packages/onnxruntime/capi/*.so
+python-dependencies/macos-intel/lib/python3.10/site-packages/onnxruntime/capi/*.dylib
+python-dependencies/**/*.dylib
+python-dependencies/**/*.so
