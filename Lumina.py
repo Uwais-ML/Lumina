@@ -149,8 +149,61 @@ COMMANDS = {
 }
 
 
+def ensure_java_compiled():
+    """Ensures compiled Java classes or lumina.jar exist; attempts automatic build if missing."""
+    target_classes = os.path.join(PROJECT_ROOT, "target", "classes")
+    lumina_jar = os.path.join(PROJECT_ROOT, "lib", "lumina.jar")
+
+    if os.path.exists(lumina_jar) or os.path.exists(target_classes):
+        return
+
+    print("[Lumina] Compiled Java classes/JAR not found. Attempting automatic build...")
+    src_dir = os.path.join(PROJECT_ROOT, "src", "java")
+    if not os.path.exists(src_dir):
+        return
+
+    os.makedirs(target_classes, exist_ok=True)
+    lib_dir = os.path.join(PROJECT_ROOT, "lib")
+    lib_jars = []
+    if os.path.exists(lib_dir):
+        for f in os.listdir(lib_dir):
+            if f.endswith(".jar") and f != "lumina.jar":
+                lib_jars.append(os.path.join(lib_dir, f))
+
+    sep = ";" if detect_os() == "windows" else ":"
+    cp = sep.join(lib_jars)
+
+    java_files = []
+    for root, _, files in os.walk(src_dir):
+        for f in files:
+            if f.endswith(".java"):
+                java_files.append(os.path.join(root, f))
+
+    if java_files:
+        try:
+            cmd = ["javac", "-d", target_classes]
+            if cp:
+                cmd.extend(["-cp", cp])
+            cmd.extend(java_files)
+            res = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
+            if res.returncode == 0:
+                print("[Lumina] Java source compilation succeeded.")
+                return
+        except Exception:
+            pass
+
+    try:
+        res = subprocess.run(["mvn", "compile"], cwd=PROJECT_ROOT, capture_output=True, text=True)
+        if res.returncode == 0:
+            print("[Lumina] Maven compilation succeeded.")
+            return
+    except Exception:
+        pass
+
+
 def run_java(target_class, extra_args):
     """Executes a Java main class using the dynamically resolved bundled JRE."""
+    ensure_java_compiled()
     java_bin = get_bundled_jre()
     classpath = build_java_classpath()
 

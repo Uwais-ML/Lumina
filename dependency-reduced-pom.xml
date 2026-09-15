@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.example</groupId>
+  <groupId>lumina</groupId>
   <artifactId>ai-java-workspace</artifactId>
   <name>AI Java Workspace</name>
   <version>1.0-SNAPSHOT</version>
   <build>
+    <sourceDirectory>src/java</sourceDirectory>
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
@@ -39,7 +40,7 @@
             <configuration>
               <transformers>
                 <transformer>
-                  <mainClass>com.example.LuminaWebServer</mainClass>
+                  <mainClass>lumina.LuminaWebServer</mainClass>
                 </transformer>
               </transformers>
             </configuration>
@@ -80,7 +81,7 @@
   </dependencies>
   <properties>
     <maven.compiler.release>17</maven.compiler.release>
-    <exec.mainClass>com.example.Runit</exec.mainClass>
+    <exec.mainClass>lumina.Runit</exec.mainClass>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <javafx.version>17.0.1</javafx.version>
     <junit.version>5.10.2</junit.version>
