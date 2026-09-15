@@ -341,7 +341,7 @@ def run_java(target_class, extra_args):
     cmd = [java_bin, "-cp", classpath, target_class] + extra_args
     print(f"[Lumina] OS: {detect_os()} | Runtime: {java_bin}")
     show_loading_animation(0.8, f"Preparing Java Environment for {target_class}")
-    print(f"\033[92m[Lumina]\033[0m Executing Java class: \033[97m{target_class}\033[0m\n")
+    print(f"\033[92m[Lumina]\033[0m Executing Java class: \033[1m{target_class}\033[0m\n")
 
     subprocess.run(cmd, cwd=PROJECT_ROOT, check=False)
 
@@ -357,7 +357,7 @@ def run_python(script_path, extra_args):
     cmd = [python_bin, script_path] + extra_args
     print(f"[Lumina] OS: {detect_os()} | Runtime: {python_bin}")
     show_loading_animation(0.8, f"Initializing Python Context for {os.path.basename(script_path)}")
-    print(f"\033[92m[Lumina]\033[0m Executing Python script: \033[97m{os.path.basename(script_path)}\033[0m\n")
+    print(f"\033[92m[Lumina]\033[0m Executing Python script: \033[1m{os.path.basename(script_path)}\033[0m\n")
 
     subprocess.run(cmd, cwd=PROJECT_ROOT, env=env, check=False)
 
@@ -382,8 +382,8 @@ def print_help():
     c_green = "\033[92m"
     c_magenta = "\033[95m"
     c_yellow = "\033[93m"
-    c_white = "\033[97m"
-    c_gray = "\033[90m"
+    c_white = "\033[1m"  # Bold default instead of forced white
+    c_gray = "\033[0m"   # Default text instead of hard-to-read gray
     c_reset = "\033[0m"
 
     print(f"\n{c_cyan}✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:*{c_reset}\n")
