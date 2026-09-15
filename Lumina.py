@@ -6,13 +6,15 @@ Dynamic OS detection automatically resolves the appropriate bundled JRE and
 bundled CPython runtimes for Windows, macOS, and Linux.
 
 Usage:
-    lumina --models     -> Launches the LLM model store web server (LuminaWebServer)
-    lumina --bench      -> Runs the hardware benchmark (Runit)
-    lumina --assess     -> Runs the bandwidth/token predictor (SystemAssess)
-    lumina --download   -> Runs the custom model downloader (downloadmodel)
-    lumina --setup      -> Downloads base test models (download_base_models.py)
-    lumina --rag        -> Runs the local RAG pipeline (rag.py)
-    lumina --agentic    -> Runs the Agentic RAG pipeline (agentic_rag.py)
+    lumina --models               -> Launches the LLM model store web server (LuminaWebServer)
+    lumina --bench                -> Runs the hardware benchmark (Runit)
+    lumina --assess               -> Runs the bandwidth/token predictor (SystemAssess)
+    lumina --download             -> Runs the custom model downloader (downloadmodel)
+    lumina --setup                -> Downloads base test models (download_base_models.py)
+    lumina --rag                  -> Runs the local RAG pipeline (rag.py)
+    lumina --agentic              -> Runs the Agentic RAG pipeline (agentic_rag.py)
+    lumina --install <pkg ...>    -> Installs Python package(s) into the bundled Python env
+    lumina --dependencies         -> Installs ALL required Python dependencies automatically
 """
 
 import os
@@ -22,6 +24,36 @@ import sys
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SYSTEM_OS = platform.system().lower()  # "windows", "darwin", "linux"
+
+# Core Python packages required by Lumina scripts (no torch / no heavy ML frameworks)
+REQUIRED_PACKAGES = [
+    "huggingface-hub",
+    "langchain",
+    "langchain-community",
+    "langchain-text-splitters",
+    "langchain-chroma",
+    "langchain-huggingface",
+    "langchain-openai",
+    "langchain-core",
+    "chromadb",
+    "sentence-transformers",
+    "psutil",
+    "pydantic",
+    "requests",
+    "transformers",
+    "tokenizers",
+    "onnxruntime",
+    "numpy",
+    "tqdm",
+    "tiktoken",
+    "openai",
+    "rich",
+    "python-dotenv",
+    "pyyaml",
+    "regex",
+    "safetensors",
+    "pillow",
+]
 
 
 def detect_os():
@@ -78,6 +110,95 @@ def get_bundled_python():
 
     # Fallback to system python interpreter
     return sys.executable, None
+
+
+def get_bundled_site_packages():
+    """Returns the site-packages directory inside the bundled Python env for the current OS."""
+    os_type = detect_os()
+    if os_type == "macos":
+        return os.path.join(PROJECT_ROOT, "python-dependencies", "macos-intel",
+                            "lib", "python3.10", "site-packages")
+    elif os_type == "windows":
+        return os.path.join(PROJECT_ROOT, "python-dependencies", "windows",
+                            "Lib", "site-packages")
+    else:
+        return os.path.join(PROJECT_ROOT, "python-dependencies", "linux-intel",
+                            "lib", "python3.10", "site-packages")
+
+
+def get_pip_platform_flags():
+    """
+    Returns extra pip flags needed when cross-installing into a bundled env.
+    When running ON the target OS the bundled python's pip is used directly
+    (no cross flags needed). When the host OS differs from the bundled target
+    we pass --platform / --python-version / --only-binary=:all:.
+    """
+    os_type = detect_os()
+    python_bin, _ = get_bundled_python()
+
+    # Detect bundled python version
+    try:
+        result = subprocess.run(
+            [python_bin, "-c", "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')"],
+            capture_output=True, text=True, timeout=5
+        )
+        py_ver = result.stdout.strip() if result.returncode == 0 else "310"
+    except Exception:
+        py_ver = "310"
+
+    if os_type == "windows":
+        return ["--platform", "win_amd64", "--python-version", py_ver, "--only-binary=:all:"]
+    elif os_type == "macos":
+        arch = platform.machine().lower()
+        plat = "macosx_10_9_x86_64" if arch in ("x86_64", "amd64") else "macosx_11_0_arm64"
+        return ["--platform", plat, "--python-version", py_ver, "--only-binary=:all:"]
+    else:
+        return ["--platform", "manylinux2014_x86_64", "--python-version", py_ver, "--only-binary=:all:"]
+
+
+def install_package(packages):
+    """
+    Installs one or more Python packages into the bundled Python env for the current OS.
+    Automatically selects the correct --target path and platform flags.
+    If a package fails with only-binary, retries allowing source builds.
+    """
+    site_packages = get_bundled_site_packages()
+    os.makedirs(site_packages, exist_ok=True)
+
+    python_bin, _ = get_bundled_python()
+    pip_flags = get_pip_platform_flags()
+
+    # Prefer using the bundled python's own pip module so versions stay consistent
+    # but fall back to system pip if bundled python isn't available yet
+    pip_cmd_base = [python_bin, "-m", "pip", "install",
+                    "--target", site_packages] + pip_flags + packages
+
+    print(f"[Lumina] Installing {', '.join(packages)} into bundled Python ({detect_os()})...")
+    print(f"[Lumina] Target: {site_packages}\n")
+
+    result = subprocess.run(pip_cmd_base, cwd=PROJECT_ROOT)
+
+    if result.returncode != 0:
+        print(f"\n[Lumina] Binary-only install failed for some packages.")
+        print(f"[Lumina] Retrying without --only-binary restriction (may build from source)...")
+        # Retry without --only-binary flag
+        retry_flags = [f for f in pip_flags if "--only-binary" not in f]
+        retry_cmd = [python_bin, "-m", "pip", "install",
+                     "--target", site_packages] + retry_flags + packages
+        result2 = subprocess.run(retry_cmd, cwd=PROJECT_ROOT)
+        if result2.returncode == 0:
+            print(f"\n[Lumina] ✓ Successfully installed: {', '.join(packages)}")
+        else:
+            print(f"\n[Lumina] ✗ Install failed. Check pip output above.")
+    else:
+        print(f"\n[Lumina] ✓ Successfully installed: {', '.join(packages)}")
+
+
+def install_all_dependencies():
+    """Installs all required Lumina Python dependencies into the bundled env."""
+    print("[Lumina] Installing all required Python dependencies...")
+    print(f"[Lumina] Packages: {', '.join(REQUIRED_PACKAGES)}\n")
+    install_package(REQUIRED_PACKAGES)
 
 
 def build_java_classpath():
@@ -145,6 +266,14 @@ COMMANDS = {
         "type": "python",
         "target": os.path.join(PROJECT_ROOT, "scripts", "launch_model.py"),
         "description": "Launches a specific GGUF model via llamafile server",
+    },
+    "--install": {
+        "type": "builtin",
+        "description": "Installs Python package(s) into the bundled Python env  [usage: --install <pkg ...>]",
+    },
+    "--dependencies": {
+        "type": "builtin",
+        "description": "Installs ALL required Python dependencies into the bundled env",
     },
 }
 
@@ -229,20 +358,24 @@ def run_python(script_path, extra_args):
     subprocess.run(cmd, cwd=PROJECT_ROOT, env=env, check=False)
 
 
+def print_help():
+    print("=================================================")
+    print(" Lumina AI Engine — Dynamic CLI Runner")
+    print("=================================================")
+    print(f" Detected OS: {detect_os()}")
+    print(f" Bundled JRE: {get_bundled_jre()}")
+    python_bin, _ = get_bundled_python()
+    print(f" Bundled Python: {python_bin}")
+    print("\nUsage: lumina <command> [args...]")
+    print("\nAvailable commands:")
+    for key, info in COMMANDS.items():
+        print(f"  {key:<16} -> {info['description']}")
+    print("=================================================")
+
+
 def main():
     if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:
-        print("=================================================")
-        print(" Lumina AI Engine — Dynamic CLI Runner")
-        print("=================================================")
-        print(f" Detected OS: {detect_os()}")
-        print(f" Bundled JRE: {get_bundled_jre()}")
-        python_bin, _ = get_bundled_python()
-        print(f" Bundled Python: {python_bin}")
-        print("\nUsage: lumina <command> [args...]")
-        print("\nAvailable commands:")
-        for key, info in COMMANDS.items():
-            print(f"  {key:<12} -> {info['description']}")
-        print("=================================================")
+        print_help()
         sys.exit(1)
 
     command = sys.argv[1]
@@ -253,6 +386,15 @@ def main():
         run_java(entry["target"], extra_args)
     elif entry["type"] == "python":
         run_python(entry["target"], extra_args)
+    elif entry["type"] == "builtin":
+        if command == "--install":
+            if not extra_args:
+                print("[Lumina] Error: --install requires at least one package name.")
+                print("  Usage: lumina --install <package1> [package2 ...]")
+                sys.exit(1)
+            install_package(extra_args)
+        elif command == "--dependencies":
+            install_all_dependencies()
 
 
 if __name__ == "__main__":

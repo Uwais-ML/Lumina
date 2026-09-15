@@ -5,10 +5,20 @@ models/
 .DS_Store
 **/.DS_Store
 
-# Large Python binary dependencies (torch, onnxruntime, chromadb native libs)
+# Large Python binary dependencies — excluded to stay under GitHub's 100MB file limit
+# Run: lumina --dependencies   to install these automatically on your platform
+
+# macOS large binaries
 python-dependencies/macos-intel/lib/python3.10/site-packages/torch*
 python-dependencies/macos-intel/lib/python3.10/site-packages/chromadb_rust_bindings*
 python-dependencies/macos-intel/lib/python3.10/site-packages/onnxruntime/capi/*.so
 python-dependencies/macos-intel/lib/python3.10/site-packages/onnxruntime/capi/*.dylib
 python-dependencies/**/*.dylib
 python-dependencies/**/*.so
+
+# Windows large binaries
+python-dependencies/windows/Lib/site-packages/torch*
+python-dependencies/windows/Lib/site-packages/chromadb_rust_bindings*
+python-dependencies/windows/Lib/site-packages/onnxruntime/capi/*.dll
+python-dependencies/**/*.dll
+python-dependencies/**/*.pyd

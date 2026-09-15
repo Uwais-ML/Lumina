@@ -1,0 +1,25 @@
+# Lumina Windows bundled Python dependencies
+# Pinned to exact versions matching the macOS bundled env for reproducibility
+huggingface-hub==1.26.0
+langchain==1.3.15
+langchain-community==0.4.2
+langchain-text-splitters==1.1.2
+langchain-openai==1.5.1
+langchain-core==1.5.5
+chromadb==1.5.9
+sentence-transformers==5.7.0
+psutil==5.9.8
+pydantic==2.13.4
+requests==2.34.2
+transformers==5.15.0
+tokenizers==0.22.2
+onnxruntime==1.23.2
+numpy==2.2.6
+tqdm==4.70.0
+tiktoken==0.13.0
+openai==3.1.0
+rich==15.0.0
+python-dotenv==1.2.2
+pyyaml==6.0.3
+regex==2026.7.19
+safetensors==0.8.0
