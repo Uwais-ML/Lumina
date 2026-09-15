@@ -34,7 +34,7 @@ public class downloadmodel {
             String pythonselect = "";
 
             if (osName.contains("win")){
-                 pythonselect = "/windows-intel/python.exe"; 
+                 pythonselect = "/windows/python.exe"; 
             }
             else if (osName.contains("mac") && arch.contains("x86")){
                  pythonselect = "/macos-intel/bin/python3";
