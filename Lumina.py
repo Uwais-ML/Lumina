@@ -21,6 +21,8 @@ import os
 import platform
 import subprocess
 import sys
+import time
+
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SYSTEM_OS = platform.system().lower()  # "windows", "darwin", "linux"
@@ -338,7 +340,8 @@ def run_java(target_class, extra_args):
 
     cmd = [java_bin, "-cp", classpath, target_class] + extra_args
     print(f"[Lumina] OS: {detect_os()} | Runtime: {java_bin}")
-    print(f"[Lumina] Executing Java class: {target_class}\n")
+    show_loading_animation(0.8, f"Preparing Java Environment for {target_class}")
+    print(f"\033[92m[Lumina]\033[0m Executing Java class: \033[97m{target_class}\033[0m\n")
 
     subprocess.run(cmd, cwd=PROJECT_ROOT, check=False)
 
@@ -353,24 +356,62 @@ def run_python(script_path, extra_args):
 
     cmd = [python_bin, script_path] + extra_args
     print(f"[Lumina] OS: {detect_os()} | Runtime: {python_bin}")
-    print(f"[Lumina] Executing Python script: {os.path.basename(script_path)}\n")
+    show_loading_animation(0.8, f"Initializing Python Context for {os.path.basename(script_path)}")
+    print(f"\033[92m[Lumina]\033[0m Executing Python script: \033[97m{os.path.basename(script_path)}\033[0m\n")
 
     subprocess.run(cmd, cwd=PROJECT_ROOT, env=env, check=False)
 
 
+
+def show_loading_animation(duration=1.5, text="Initializing Lumina Engine"):
+    chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    steps = int(duration / 0.1)
+    for i in range(steps):
+        sys.stdout.write(f"\r\033[96m{chars[i % len(chars)]}\033[0m {text}...")
+        sys.stdout.flush()
+        time.sleep(0.1)
+    sys.stdout.write(f"\r\033[92m✔\033[0m {text}... Done!      \n")
+    sys.stdout.flush()
+
 def print_help():
-    print("=================================================")
-    print(" Lumina AI Engine — Dynamic CLI Runner")
-    print("=================================================")
-    print(f" Detected OS: {detect_os()}")
-    print(f" Bundled JRE: {get_bundled_jre()}")
+    show_loading_animation(1.0, "Booting Core Systems")
+    
+    # ANSI Colors
+    c_cyan = "\033[96m"
+    c_blue = "\033[94m"
+    c_green = "\033[92m"
+    c_magenta = "\033[95m"
+    c_yellow = "\033[93m"
+    c_white = "\033[97m"
+    c_gray = "\033[90m"
+    c_reset = "\033[0m"
+
+    print(f"\n{c_cyan}✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:*{c_reset}\n")
+    print(f"{c_magenta}" + """
+ ▒▒███                                   ▒▒▒                       
+  ▒███        █████ ████ █████████████   ████  ████████    ██████  
+  ▒███       ▒▒███ ▒███ ▒▒███▒▒███▒▒███ ▒▒███ ▒▒███▒▒███  ▒▒▒▒▒███ 
+  ▒███        ▒███ ▒███  ▒███ ▒███ ▒███  ▒███  ▒███ ▒███   ███████ 
+  ▒███      █ ▒███ ▒███  ▒███ ▒███ ▒███  ▒███  ▒███ ▒███  ███▒▒███ 
+  ███████████ ▒▒████████ █████▒███ █████ █████ ████ █████▒▒████████
+ ▒▒▒▒▒▒▒▒▒▒▒   ▒▒▒▒▒▒▒▒ ▒▒▒▒▒ ▒▒▒ ▒▒▒▒▒ ▒▒▒▒▒ ▒▒▒▒ ▒▒▒▒▒  ▒▒▒▒▒▒▒▒ 
+    """ + f"{c_reset}")
+    print(f"{c_cyan}✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:*{c_reset}\n")
+
+    print(f" {c_white}Lumina AI Engine — Dynamic CLI Runner{c_reset}")
+    print(f" {c_gray}‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾{c_reset}")
+    
+    print(f" {c_yellow}❖ Detected OS:{c_reset}     {detect_os()}")
+    print(f" {c_yellow}❖ Bundled JRE:{c_reset}    {get_bundled_jre()}")
     python_bin, _ = get_bundled_python()
-    print(f" Bundled Python: {python_bin}")
-    print("\nUsage: lumina <command> [args...]")
-    print("\nAvailable commands:")
+    print(f" {c_yellow}❖ Bundled Python:{c_reset} {python_bin}\n")
+    
+    print(f" {c_green}Usage:{c_reset} {c_white}lumina <command> [args...]{c_reset}\n")
+    
+    print(f" {c_green}Available commands:{c_reset}")
     for key, info in COMMANDS.items():
-        print(f"  {key:<16} -> {info['description']}")
-    print("=================================================")
+        print(f"  {c_cyan}{key:<16}{c_reset} {c_gray}→{c_reset} {c_white}{info['description']}{c_reset}")
+    print(f"\n{c_cyan}✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:*{c_reset}\n")
 
 
 def main():
