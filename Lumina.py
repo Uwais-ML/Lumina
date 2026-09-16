@@ -29,7 +29,7 @@ SYSTEM_OS = platform.system().lower()  # "windows", "darwin", "linux"
 
 # Core Python packages required by Lumina scripts (no torch / no heavy ML frameworks)
 REQUIRED_PACKAGES = [
-    "huggingface-hub",
+    "huggingface-hub<1.0.0",
     "langchain",
     "langchain-community",
     "langchain-text-splitters",
