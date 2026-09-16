@@ -131,38 +131,17 @@ def get_bundled_site_packages():
 def get_pip_platform_flags():
     """
     Returns extra pip flags needed when cross-installing into a bundled env.
-    When running ON the target OS the bundled python's pip is used directly
-    (no cross flags needed). When the host OS differs from the bundled target
-    we pass --platform / --python-version / --only-binary=:all:.
+    When running ON the target OS the bundled python's pip is used directly (no cross flags needed).
     """
-    os_type = detect_os()
-    python_bin, _ = get_bundled_python()
-
-    # Detect bundled python version
-    try:
-        result = subprocess.run(
-            [python_bin, "-c", "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')"],
-            capture_output=True, text=True, timeout=5
-        )
-        py_ver = result.stdout.strip() if result.returncode == 0 else "310"
-    except Exception:
-        py_ver = "310"
-
-    if os_type == "windows":
-        return ["--platform", "win_amd64", "--python-version", py_ver, "--only-binary=:all:"]
-    elif os_type == "macos":
-        arch = platform.machine().lower()
-        plat = "macosx_10_9_x86_64" if arch in ("x86_64", "amd64") else "macosx_11_0_arm64"
-        return ["--platform", plat, "--python-version", py_ver, "--only-binary=:all:"]
-    else:
-        return ["--platform", "manylinux2014_x86_64", "--python-version", py_ver, "--only-binary=:all:"]
+    # When running on the native OS, we do not need cross-platform restriction flags
+    return []
 
 
 def install_package(packages):
     """
     Installs one or more Python packages into the bundled Python env for the current OS.
-    Automatically selects the correct --target path and platform flags.
-    If a package fails with only-binary, retries allowing source builds.
+    Automatically selects the correct --target path.
+    Installs packages cleanly and reports per-package status.
     """
     site_packages = get_bundled_site_packages()
     os.makedirs(site_packages, exist_ok=True)
@@ -170,30 +149,33 @@ def install_package(packages):
     python_bin, _ = get_bundled_python()
     pip_flags = get_pip_platform_flags()
 
-    # Prefer using the bundled python's own pip module so versions stay consistent
-    # but fall back to system pip if bundled python isn't available yet
-    pip_cmd_base = [python_bin, "-m", "pip", "install",
-                    "--target", site_packages] + pip_flags + packages
-
-    print(f"[Lumina] Installing {', '.join(packages)} into bundled Python ({detect_os()})...")
+    print(f"[Lumina] Installing into bundled Python ({detect_os()})...")
     print(f"[Lumina] Target: {site_packages}\n")
 
-    result = subprocess.run(pip_cmd_base, cwd=PROJECT_ROOT)
+    # First attempt bulk install
+    pip_cmd = [python_bin, "-m", "pip", "install", "--target", site_packages, "--no-user"] + pip_flags + packages
+    result = subprocess.run(pip_cmd, cwd=PROJECT_ROOT)
 
-    if result.returncode != 0:
-        print(f"\n[Lumina] Binary-only install failed for some packages.")
-        print(f"[Lumina] Retrying without --only-binary restriction (may build from source)...")
-        # Retry without --only-binary flag
-        retry_flags = [f for f in pip_flags if "--only-binary" not in f]
-        retry_cmd = [python_bin, "-m", "pip", "install",
-                     "--target", site_packages] + retry_flags + packages
-        result2 = subprocess.run(retry_cmd, cwd=PROJECT_ROOT)
-        if result2.returncode == 0:
-            print(f"\n[Lumina] ✓ Successfully installed: {', '.join(packages)}")
+    if result.returncode == 0:
+        print(f"\n[Lumina] ✓ Successfully installed all requested packages!")
+        return
+
+    print(f"\n[Lumina] Bulk install encountered an issue. Falling back to individual package installation...")
+    successes = []
+    failures = []
+    for pkg in packages:
+        print(f"\n[Lumina] Installing: {pkg}...")
+        single_cmd = [python_bin, "-m", "pip", "install", "--target", site_packages, "--no-user"] + pip_flags + [pkg]
+        res = subprocess.run(single_cmd, cwd=PROJECT_ROOT)
+        if res.returncode == 0:
+            successes.append(pkg)
         else:
-            print(f"\n[Lumina] ✗ Install failed. Check pip output above.")
-    else:
-        print(f"\n[Lumina] ✓ Successfully installed: {', '.join(packages)}")
+            failures.append(pkg)
+
+    if successes:
+        print(f"\n[Lumina] ✓ Successfully installed: {', '.join(successes)}")
+    if failures:
+        print(f"[Lumina] ⚠️ Failed to install optional/incompatible packages: {', '.join(failures)}")
 
 
 def install_all_dependencies():
