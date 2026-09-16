@@ -1,6 +1,6 @@
 target/
 src/main/java/com/example/LLMs/
-models/
+/models/
 **/.cache/
 .DS_Store
 **/.DS_Store
