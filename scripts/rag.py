@@ -116,7 +116,7 @@ class AIcall:
         
         
         openai_api_key = api_key or os.getenv("QWEN_API_KEY", "EMPTY")
-        openai_base_url = base_url or os.getenv("QWEN_BASE_URL", "http://127.0.0.1:49494")
+        openai_base_url = base_url or os.getenv("QWEN_BASE_URL", "http://127.0.0.1:50125")
         
         print(f"Connecting to Qwen server at: {openai_base_url}")
         self.llm = ChatOpenAI(

@@ -5,16 +5,8 @@ Lumina.py - Unified cross-platform CLI dispatcher for the Lumina AI toolchain.
 Dynamic OS detection automatically resolves the appropriate bundled JRE and
 bundled CPython runtimes for Windows, macOS, and Linux.
 
-Usage:
-    lumina --models               -> Launches the LLM model store web server (LuminaWebServer)
-    lumina --bench                -> Runs the hardware benchmark (Runit)
-    lumina --assess               -> Runs the bandwidth/token predictor (SystemAssess)
-    lumina --download             -> Runs the custom model downloader (downloadmodel)
-    lumina --setup                -> Downloads base test models (download_base_models.py)
-    lumina --rag                  -> Runs the local RAG pipeline (rag.py)
-    lumina --agentic              -> Runs the Agentic RAG pipeline (agentic_rag.py)
-    lumina --install <pkg ...>    -> Installs Python package(s) into the bundled Python env
-    lumina --dependencies         -> Installs ALL required Python dependencies automatically
+Enterprise UI/UX: Suppresses raw system noise (SLF4J, reflection warnings,
+deprecation notices) from terminal stdout while recording full raw logs to logs/lumina.log.
 """
 
 import os
@@ -22,12 +14,57 @@ import platform
 import subprocess
 import sys
 import time
-
+import re
+from datetime import datetime
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SYSTEM_OS = platform.system().lower()  # "windows", "darwin", "linux"
 
-# Core Python packages required by Lumina scripts (no torch / no heavy ML frameworks)
+# Paths
+LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
+LOG_FILE = os.path.join(LOG_DIR, "lumina.log")
+
+# ANSI Color Palette
+CLR_BRAND = "\033[38;2;0;210;255m"  # Vibrant Cyan / Teal
+CLR_PURPLE = "\033[38;2;160;32;240m"  # Deep Purple Accent
+CLR_SUCCESS = "\033[38;2;46;204;113m"  # Emerald Green
+CLR_WARN = "\033[38;2;241;196;15m"  # Warm Gold / Amber
+CLR_ERROR = "\033[38;2;231;76;60m"  # Bright Coral Red
+CLR_INFO = "\033[38;2;52;152;219m"  # Sky Blue
+CLR_BOLD = "\033[1m"
+CLR_DIM = "\033[2m"
+CLR_RESET = "\033[0m"
+
+# Regex for stripping ANSI escape sequences for file logging
+ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
+# Known background noise patterns to suppress from terminal output (logged to file only)
+NOISE_PATTERNS = [
+    r"SLF4J:",
+    r"WARNING: A restricted method in java\.lang\.System",
+    r"WARNING: java\.lang\.System::load",
+    r"WARNING: Use --enable-native-access",
+    r"WARNING: Restricted methods will be blocked",
+    r"DeprecationWarning:",
+    r"\[transformers\] Disabling PyTorch",
+    r"\[transformers\] PyTorch was not found",
+    r"UserWarning: Failed to initialize NumPy",
+    r"A module that was compiled using NumPy",
+    r"WARNING: There was an error checking the latest version of pip",
+    r"WARNING: Target directory",
+    r"To support both 1\.x and 2\.x versions of NumPy",
+    r"If you are a user of the module, the easiest solution",
+    r"We expect that some modules will need time",
+    r"See http://www\.slf4j\.org/codes\.html",
+    r"\[INFO\] Scanning for projects\.\.\.",
+    r"\[INFO\] Building ",
+    r"\[INFO\] Nothing to compile",
+    r"Requirement already satisfied:",
+    r"org\.slf4j\.impl\.StaticLoggerBinder",
+    r"com\.sun\.jna\.Native",
+]
+
+# Core Python packages required by Lumina scripts
 REQUIRED_PACKAGES = [
     "huggingface-hub<1.0.0",
     "langchain",
@@ -56,6 +93,158 @@ REQUIRED_PACKAGES = [
     "safetensors",
     "pillow",
 ]
+
+
+def strip_ansi(text):
+    """Strips ANSI control codes for plain-text file logging."""
+    return ANSI_ESCAPE.sub("", text)
+
+
+def log_to_file(raw_line):
+    """Appends raw timestamped output to logs/lumina.log quietly."""
+    try:
+        os.makedirs(LOG_DIR, exist_ok=True)
+        clean_line = strip_ansi(raw_line).rstrip()
+        if clean_line:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(f"[{timestamp}] {clean_line}\n")
+    except Exception:
+        pass
+
+
+def lumina_log(message, tag="Engine", level="INFO"):
+    """Prints a branded Lumina status message to terminal AND logs to logs/lumina.log."""
+    if level == "SUCCESS":
+        badge = f"{CLR_SUCCESS}✔{CLR_RESET}"
+        prefix = f"{CLR_BRAND}[Lumina {tag}]{CLR_RESET} {badge}"
+    elif level == "WARN":
+        badge = f"{CLR_WARN}⚠️{CLR_RESET}"
+        prefix = f"{CLR_BRAND}[Lumina {tag}]{CLR_RESET} {badge}"
+    elif level == "ERROR":
+        badge = f"{CLR_ERROR}✖{CLR_RESET}"
+        prefix = f"{CLR_BRAND}[Lumina {tag}]{CLR_RESET} {badge}"
+    else:
+        prefix = f"{CLR_BRAND}[Lumina {tag}]{CLR_RESET}"
+
+    formatted_msg = f"{prefix} {message}"
+    print(formatted_msg)
+    sys.stdout.flush()
+    log_to_file(f"[{level}] [{tag}] {message}")
+
+
+def is_noise_line(line):
+    """Returns True if the output line matches known noisy system/compiler/warning chatter."""
+    for pattern in NOISE_PATTERNS:
+        if re.search(pattern, line, re.IGNORECASE):
+            return True
+    return False
+
+
+def format_subprocess_line(line, tag="Engine"):
+    """Formats valid subprocess output with professional Lumina ANSI branding."""
+    line_clean = line.strip()
+    if not line_clean:
+        return None
+
+    # Lumina Web Server
+    if "Lumina Web Server running locally!" in line_clean or "✨ Lumina Web Server" in line_clean:
+        return f"{CLR_BRAND}[Lumina Server]{CLR_RESET} {CLR_SUCCESS}✨ Lumina Web Server is live and running locally!{CLR_RESET}"
+    elif "Access Web Dashboard at:" in line_clean or "http://localhost:" in line_clean:
+        url = line_clean.split("at:")[-1].strip() if "at:" in line_clean else line_clean
+        return f"{CLR_BRAND}[Lumina Server]{CLR_RESET} {CLR_INFO}👉 Access Web Dashboard at: {CLR_BOLD}{url}{CLR_RESET}"
+    elif "Failed to bind port" in line_clean:
+        return f"{CLR_BRAND}[Lumina Server]{CLR_RESET} {CLR_WARN}Port conflict detected, retrying next port...{CLR_RESET}"
+
+    # Benchmarks & Assessment
+    elif "Calculated True Bandwidth:" in line_clean:
+        return f"{CLR_BRAND}[Lumina Assess]{CLR_RESET} {CLR_SUCCESS}📊 {line_clean}{CLR_RESET}"
+    elif "Estimated tokens/sec" in line_clean:
+        return f"{CLR_BRAND}[Lumina Assess]{CLR_RESET} {CLR_INFO}⚡ {line_clean}{CLR_RESET}"
+    elif "Raw Token/s Array:" in line_clean:
+        return f"{CLR_BRAND}[Lumina Assess]{CLR_RESET} {CLR_DIM}{line_clean}{CLR_RESET}"
+
+    # Downloader
+    elif "Starting download for:" in line_clean:
+        return f"{CLR_BRAND}[Lumina Downloader]{CLR_RESET} {CLR_INFO}📥 {line_clean}{CLR_RESET}"
+    elif "From Repository:" in line_clean:
+        return f"{CLR_BRAND}[Lumina Downloader]{CLR_RESET} {CLR_DIM}{line_clean}{CLR_RESET}"
+    elif "Successfully downloaded to:" in line_clean:
+        return f"{CLR_BRAND}[Lumina Downloader]{CLR_RESET} {CLR_SUCCESS}✔ {line_clean}{CLR_RESET}"
+
+    # RAG & Reasoning
+    elif "Loaded" in line_clean and "document" in line_clean:
+        return f"{CLR_BRAND}[Lumina RAG]{CLR_RESET} {CLR_INFO}📄 {line_clean}{CLR_RESET}"
+    elif "Created" in line_clean and "chunks" in line_clean:
+        return f"{CLR_BRAND}[Lumina RAG]{CLR_RESET} {CLR_INFO}🧩 {line_clean}{CLR_RESET}"
+    elif "Connecting to Qwen" in line_clean or "Loading existing vector store" in line_clean:
+        return f"{CLR_BRAND}[Lumina RAG]{CLR_RESET} {CLR_INFO}🔗 {line_clean}{CLR_RESET}"
+    elif "ANSWER:" in line_clean:
+        return f"{CLR_BRAND}[Lumina RAG]{CLR_RESET} {CLR_SUCCESS}{CLR_BOLD}{line_clean}{CLR_RESET}"
+    elif "SOURCES USED:" in line_clean:
+        return f"{CLR_BRAND}[Lumina RAG]{CLR_RESET} {CLR_PURPLE}{line_clean}{CLR_RESET}"
+
+    # Preserved Lumina formatting
+    elif line_clean.startswith("[Lumina]"):
+        content = line_clean[8:].strip()
+        return f"{CLR_BRAND}[Lumina {tag}]{CLR_RESET} {content}"
+
+    # General clean line
+    return f"{CLR_BRAND}[Lumina {tag}]{CLR_RESET} {line_clean}"
+
+
+def run_logged_process(cmd, cwd=PROJECT_ROOT, env=None, tag="Engine"):
+    """
+    Executes a subprocess while intercepting stdout/stderr.
+    Filters raw noise from terminal while recording 100% of raw output to logs/lumina.log.
+    """
+    if env is None:
+        env = os.environ.copy()
+
+    # Force unbuffered Python output for real-time streaming
+    env["PYTHONUNBUFFERED"] = "1"
+
+    log_to_file(f"=== Command Execution Started: {' '.join(cmd)} ===")
+
+    try:
+        process = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        for line in iter(process.stdout.readline, ""):
+            if not line:
+                break
+
+            # 1. Record raw output line to lumina.log
+            log_to_file(line)
+
+            # 2. Suppress noise from terminal display
+            if is_noise_line(line):
+                continue
+
+            # 3. Format & print clean output to terminal
+            formatted = format_subprocess_line(line, tag=tag)
+            if formatted:
+                print(formatted)
+                sys.stdout.flush()
+
+        process.stdout.close()
+        return_code = process.wait()
+
+        log_to_file(f"=== Command Finished with Exit Code: {return_code} ===")
+        return return_code
+
+    except Exception as e:
+        err_msg = f"Failed to execute process: {e}"
+        log_to_file(f"[ERROR] {err_msg}")
+        lumina_log(err_msg, tag=tag, level="ERROR")
+        return 1
 
 
 def detect_os():
@@ -90,7 +279,6 @@ def get_bundled_jre():
                 if os_type == "windows" or os.access(full_path, os.X_OK):
                     return full_path
 
-    # Fallback to system java if bundled JRE is not found
     return "java"
 
 
@@ -110,7 +298,6 @@ def get_bundled_python():
     if os.path.exists(bin_path):
         return bin_path, home_dir
 
-    # Fallback to system python interpreter
     return sys.executable, None
 
 
@@ -118,70 +305,92 @@ def get_bundled_site_packages():
     """Returns the site-packages directory inside the bundled Python env for the current OS."""
     os_type = detect_os()
     if os_type == "macos":
-        return os.path.join(PROJECT_ROOT, "python-dependencies", "macos-intel",
-                            "lib", "python3.10", "site-packages")
+        return os.path.join(
+            PROJECT_ROOT,
+            "python-dependencies",
+            "macos-intel",
+            "lib",
+            "python3.10",
+            "site-packages",
+        )
     elif os_type == "windows":
-        return os.path.join(PROJECT_ROOT, "python-dependencies", "windows",
-                            "Lib", "site-packages")
+        return os.path.join(
+            PROJECT_ROOT, "python-dependencies", "windows", "Lib", "site-packages"
+        )
     else:
-        return os.path.join(PROJECT_ROOT, "python-dependencies", "linux-intel",
-                            "lib", "python3.10", "site-packages")
+        return os.path.join(
+            PROJECT_ROOT,
+            "python-dependencies",
+            "linux-intel",
+            "lib",
+            "python3.10",
+            "site-packages",
+        )
 
 
 def get_pip_platform_flags():
-    """
-    Returns extra pip flags needed when cross-installing into a bundled env.
-    When running ON the target OS the bundled python's pip is used directly (no cross flags needed).
-    """
-    # When running on the native OS, we do not need cross-platform restriction flags
+    """Returns extra pip flags needed when cross-installing into a bundled env."""
     return []
 
 
 def install_package(packages):
-    """
-    Installs one or more Python packages into the bundled Python env for the current OS.
-    Automatically selects the correct --target path.
-    Installs packages cleanly and reports per-package status.
-    """
+    """Installs one or more Python packages into the bundled Python env cleanly."""
     site_packages = get_bundled_site_packages()
     os.makedirs(site_packages, exist_ok=True)
 
     python_bin, _ = get_bundled_python()
     pip_flags = get_pip_platform_flags()
 
-    print(f"[Lumina] Installing into bundled Python ({detect_os()})...")
-    print(f"[Lumina] Target: {site_packages}\n")
+    lumina_log(f"Installing dependencies into bundled Python ({detect_os()})...", tag="Installer")
+    lumina_log(f"Target location: {site_packages}", tag="Installer")
+    print()
 
-    # First attempt bulk install
-    pip_cmd = [python_bin, "-m", "pip", "install", "--target", site_packages, "--no-user"] + pip_flags + packages
-    result = subprocess.run(pip_cmd, cwd=PROJECT_ROOT)
+    pip_cmd = [
+        python_bin,
+        "-m",
+        "pip",
+        "install",
+        "--target",
+        site_packages,
+        "--no-user",
+    ] + pip_flags + packages
+    result = run_logged_process(pip_cmd, tag="Installer")
 
-    if result.returncode == 0:
-        print(f"\n[Lumina] ✓ Successfully installed all requested packages!")
+    if result == 0:
+        lumina_log("Successfully installed all requested packages!", tag="Installer", level="SUCCESS")
         return
 
-    print(f"\n[Lumina] Bulk install encountered an issue. Falling back to individual package installation...")
+    lumina_log("Bulk install encountered an issue. Retrying per package...", tag="Installer", level="WARN")
     successes = []
     failures = []
     for pkg in packages:
-        print(f"\n[Lumina] Installing: {pkg}...")
-        single_cmd = [python_bin, "-m", "pip", "install", "--target", site_packages, "--no-user"] + pip_flags + [pkg]
-        res = subprocess.run(single_cmd, cwd=PROJECT_ROOT)
-        if res.returncode == 0:
+        lumina_log(f"Installing package: {pkg}...", tag="Installer")
+        single_cmd = [
+            python_bin,
+            "-m",
+            "pip",
+            "install",
+            "--target",
+            site_packages,
+            "--no-user",
+        ] + pip_flags + [pkg]
+        res = run_logged_process(single_cmd, tag="Installer")
+        if res == 0:
             successes.append(pkg)
         else:
             failures.append(pkg)
 
     if successes:
-        print(f"\n[Lumina] ✓ Successfully installed: {', '.join(successes)}")
+        lumina_log(f"Successfully installed: {', '.join(successes)}", tag="Installer", level="SUCCESS")
     if failures:
-        print(f"[Lumina] ⚠️ Failed to install optional/incompatible packages: {', '.join(failures)}")
+        lumina_log(f"Failed to install: {', '.join(failures)}", tag="Installer", level="WARN")
 
 
 def install_all_dependencies():
     """Installs all required Lumina Python dependencies into the bundled env."""
-    print("[Lumina] Installing all required Python dependencies...")
-    print(f"[Lumina] Packages: {', '.join(REQUIRED_PACKAGES)}\n")
+    lumina_log("Starting automated Lumina dependency installation...", tag="Installer")
+    lumina_log(f"Packages required: {', '.join(REQUIRED_PACKAGES)}", tag="Installer")
+    print()
     install_package(REQUIRED_PACKAGES)
 
 
@@ -270,7 +479,7 @@ def ensure_java_compiled():
     if os.path.exists(lumina_jar) or os.path.exists(target_classes):
         return
 
-    print("[Lumina] Compiled Java classes/JAR not found. Attempting automatic build...")
+    lumina_log("Compiled Java binaries not found. Compiling Java sources...", tag="Java")
     src_dir = os.path.join(PROJECT_ROOT, "src", "java")
     if not os.path.exists(src_dir):
         return
@@ -298,78 +507,87 @@ def ensure_java_compiled():
             if cp:
                 cmd.extend(["-cp", cp])
             cmd.extend(java_files)
-            res = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
-            if res.returncode == 0:
-                print("[Lumina] Java source compilation succeeded.")
+            res = run_logged_process(cmd, tag="Compiler")
+            if res == 0:
+                lumina_log("Java compilation completed successfully.", tag="Java", level="SUCCESS")
                 return
         except Exception:
             pass
 
     try:
-        res = subprocess.run(["mvn", "compile"], cwd=PROJECT_ROOT, capture_output=True, text=True)
-        if res.returncode == 0:
-            print("[Lumina] Maven compilation succeeded.")
+        res = run_logged_process(["mvn", "compile"], tag="Maven")
+        if res == 0:
+            lumina_log("Maven compilation completed successfully.", tag="Java", level="SUCCESS")
             return
     except Exception:
         pass
 
 
 def run_java(target_class, extra_args):
-    """Executes a Java main class using the dynamically resolved bundled JRE."""
+    """Executes a Java main class using the bundled JRE with Lumina logging wrapper."""
     ensure_java_compiled()
     java_bin = get_bundled_jre()
     classpath = build_java_classpath()
 
+    tag = target_class.split(".")[-1]
     cmd = [java_bin, "-cp", classpath, target_class] + extra_args
-    print(f"[Lumina] OS: {detect_os()} | Runtime: {java_bin}")
-    show_loading_animation(0.8, f"Preparing Java Environment for {target_class}")
-    print(f"\033[92m[Lumina]\033[0m Executing Java class: \033[1m{target_class}\033[0m\n")
 
-    subprocess.run(cmd, cwd=PROJECT_ROOT, check=False)
+    lumina_log(f"Detected OS: {detect_os()} | JRE: {java_bin}", tag="Java")
+    show_loading_animation(0.8, f"Preparing Lumina Java Context for {tag}")
+    lumina_log(f"Launching {CLR_BOLD}{target_class}{CLR_RESET}...", tag=tag)
+    print()
+
+    code = run_logged_process(cmd, tag=tag)
+    if code == 0:
+        lumina_log(f"{tag} execution completed successfully. (Full log saved to {LOG_FILE})", tag=tag, level="SUCCESS")
+    else:
+        lumina_log(f"{tag} process exited with code {code}. (Full log saved to {LOG_FILE})", tag=tag, level="WARN")
 
 
 def run_python(script_path, extra_args):
-    """Executes a Python script using the dynamically resolved bundled Python interpreter."""
+    """Executes a Python script using the bundled Python interpreter with Lumina logging wrapper."""
     python_bin, python_home = get_bundled_python()
 
     env = os.environ.copy()
     if python_home:
         env["PYTHONHOME"] = python_home
 
+    script_name = os.path.basename(script_path)
+    tag = script_name.replace(".py", "").capitalize()
     cmd = [python_bin, script_path] + extra_args
-    print(f"[Lumina] OS: {detect_os()} | Runtime: {python_bin}")
-    show_loading_animation(0.8, f"Initializing Python Context for {os.path.basename(script_path)}")
-    print(f"\033[92m[Lumina]\033[0m Executing Python script: \033[1m{os.path.basename(script_path)}\033[0m\n")
 
-    subprocess.run(cmd, cwd=PROJECT_ROOT, env=env, check=False)
+    lumina_log(f"Detected OS: {detect_os()} | Python: {python_bin}", tag="Python")
+    show_loading_animation(0.8, f"Initializing Lumina Python Context for {script_name}")
+    lumina_log(f"Executing {CLR_BOLD}{script_name}{CLR_RESET}...", tag=tag)
+    print()
+
+    code = run_logged_process(cmd, env=env, tag=tag)
+    if code == 0:
+        lumina_log(f"{script_name} execution completed successfully. (Full log saved to {LOG_FILE})", tag=tag, level="SUCCESS")
+    else:
+        lumina_log(f"{script_name} process exited with code {code}. (Full log saved to {LOG_FILE})", tag=tag, level="WARN")
 
 
-
-def show_loading_animation(duration=1.5, text="Initializing Lumina Engine"):
+def show_loading_animation(duration=1.2, text="Initializing Lumina Engine"):
+    """Displays a smooth ANSI loading spinner."""
     chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     steps = int(duration / 0.1)
     for i in range(steps):
-        sys.stdout.write(f"\r\033[96m{chars[i % len(chars)]}\033[0m {text}...")
+        sys.stdout.write(f"\r{CLR_BRAND}[Lumina]{CLR_RESET} {CLR_INFO}{chars[i % len(chars)]}{CLR_RESET} {text}...")
         sys.stdout.flush()
         time.sleep(0.1)
-    sys.stdout.write(f"\r\033[92m✔\033[0m {text}... Done!      \n")
+    sys.stdout.write(f"\r{CLR_BRAND}[Lumina]{CLR_RESET} {CLR_SUCCESS}✔{CLR_RESET} {text}... Done!      \n")
     sys.stdout.flush()
 
-def print_help():
-    show_loading_animation(1.0, "Booting Core Systems")
-    
-    # ANSI Colors
-    c_cyan = "\033[96m"
-    c_blue = "\033[94m"
-    c_green = "\033[92m"
-    c_magenta = "\033[95m"
-    c_yellow = "\033[93m"
-    c_white = "\033[1m"  # Bold default instead of forced white
-    c_gray = "\033[0m"   # Default text instead of hard-to-read gray
-    c_reset = "\033[0m"
 
-    print(f"\n{c_cyan}✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:*{c_reset}\n")
-    print(f"{c_magenta}" + """
+def print_help():
+    """Displays the branded Lumina CLI dashboard and command list."""
+    show_loading_animation(0.8, "Booting Lumina Core Engine")
+
+    print(f"\n{CLR_BRAND}✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:*{CLR_RESET}\n")
+    print(
+        f"{CLR_PURPLE}"
+        + """
  ▒▒███                                   ▒▒▒                       
   ▒███        █████ ████ █████████████   ████  ████████    ██████  
   ▒███       ▒▒███ ▒███ ▒▒███▒▒███▒▒███ ▒▒███ ▒▒███▒▒███  ▒▒▒▒▒███ 
@@ -377,27 +595,34 @@ def print_help():
   ▒███      █ ▒███ ▒███  ▒███ ▒███ ▒███  ▒███  ▒███ ▒███  ███▒▒███ 
   ███████████ ▒▒████████ █████▒███ █████ █████ ████ █████▒▒████████
  ▒▒▒▒▒▒▒▒▒▒▒   ▒▒▒▒▒▒▒▒ ▒▒▒▒▒ ▒▒▒ ▒▒▒▒▒ ▒▒▒▒▒ ▒▒▒▒ ▒▒▒▒▒  ▒▒▒▒▒▒▒▒ 
-    """ + f"{c_reset}")
-    print(f"{c_cyan}✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:*{c_reset}\n")
+    """
+        + f"{CLR_RESET}"
+    )
+    print(f"{CLR_BRAND}✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:*{CLR_RESET}\n")
 
-    print(f" {c_white}Lumina AI Engine — Dynamic CLI Runner{c_reset}")
-    print(f" {c_gray}‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾{c_reset}")
-    
-    print(f" {c_yellow}❖ Detected OS:{c_reset}     {detect_os()}")
-    print(f" {c_yellow}❖ Bundled JRE:{c_reset}    {get_bundled_jre()}")
+    print(f" {CLR_BOLD}Lumina AI Engine — Enterprise CLI Toolchain{CLR_RESET}")
+    print(f" {CLR_DIM}‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾{CLR_RESET}")
+
     python_bin, _ = get_bundled_python()
-    print(f" {c_yellow}❖ Bundled Python:{c_reset} {python_bin}\n")
-    
-    print(f" {c_green}Usage:{c_reset} {c_white}lumina <command> [args...]{c_reset}\n")
-    
-    print(f" {c_green}Available commands:{c_reset}")
+    print(f" {CLR_BRAND}[Lumina]{CLR_RESET} {CLR_WARN}❖ Platform:{CLR_RESET}       {detect_os()}")
+    print(f" {CLR_BRAND}[Lumina]{CLR_RESET} {CLR_WARN}❖ Bundled JRE:{CLR_RESET}    {get_bundled_jre()}")
+    print(f" {CLR_BRAND}[Lumina]{CLR_RESET} {CLR_WARN}❖ Bundled Python:{CLR_RESET} {python_bin}")
+    print(f" {CLR_BRAND}[Lumina]{CLR_RESET} {CLR_WARN}❖ Log File:{CLR_RESET}       {LOG_FILE}\n")
+
+    print(f" {CLR_SUCCESS}Usage:{CLR_RESET} {CLR_BOLD}lumina <command> [args...]{CLR_RESET}\n")
+
+    print(f" {CLR_SUCCESS}Available Lumina Commands:{CLR_RESET}")
     for key, info in COMMANDS.items():
-        print(f"  {c_cyan}{key:<16}{c_reset} {c_gray}→{c_reset} {c_white}{info['description']}{c_reset}")
-    print(f"\n{c_cyan}✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:*{c_reset}\n")
+        print(f"  {CLR_BRAND}{key:<18}{CLR_RESET} {CLR_DIM}→{CLR_RESET} {CLR_BOLD}{info['description']}{CLR_RESET}")
+    print(f"\n{CLR_BRAND}✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:*{CLR_RESET}\n")
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:
+    if len(sys.argv) < 2 or sys.argv[1] in ("--help", "-h", "help"):
+        print_help()
+        sys.exit(0)
+    elif sys.argv[1] not in COMMANDS:
+        lumina_log(f"Unknown command: '{sys.argv[1]}'. See available commands below.", tag="CLI", level="WARN")
         print_help()
         sys.exit(1)
 
@@ -412,7 +637,7 @@ def main():
     elif entry["type"] == "builtin":
         if command == "--install":
             if not extra_args:
-                print("[Lumina] Error: --install requires at least one package name.")
+                lumina_log("Error: --install requires at least one package name.", tag="Installer", level="ERROR")
                 print("  Usage: lumina --install <package1> [package2 ...]")
                 sys.exit(1)
             install_package(extra_args)
