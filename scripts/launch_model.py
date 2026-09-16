@@ -19,80 +19,94 @@ def launchmodel(Modelname=None):
             return
         Modelname = sys.argv[1]
 
-    path = os.path.join("models", Modelname if Modelname.endswith(".gguf") else Modelname + ".gguf")
-    pathtollama = os.path.join("resources", "llamafile")
+    # Resolve project root from this script's location (scripts/ is one level deep)
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+
+    model_file = Modelname if Modelname.endswith(".gguf") else Modelname + ".gguf"
+    path = os.path.join(PROJECT_ROOT, "models", model_file)
+    pathtollama = os.path.join(PROJECT_ROOT, "resources", "llamafile")
     llamaname = "llamafile-0.10.4-thin"
 
     try:
         # Cross-platform adjustments
         if os.name == "nt":
-            path = path.replace("/", "\\")
-            pathtollama = pathtollama.replace("/", "\\")
-            llamaname += ".exe"
+            # Try .exe first, fall back to bare name (llamafile works both ways on Windows)
+            exe_path = os.path.join(pathtollama, llamaname + ".exe")
+            bare_path = os.path.join(pathtollama, llamaname)
+            if os.path.exists(exe_path):
+                llamaname += ".exe"
+            elif not os.path.exists(bare_path):
+                print(f"[!] Error: Llamafile binary not found at: {exe_path} or {bare_path}")
+                return
         else:
             llama_bin = os.path.join(pathtollama, llamaname)
             if os.path.exists(llama_bin):
                 os.chmod(llama_bin, 0o755)
 
-        if os.path.exists(path):
-            allocated_port = find_free_port()
-            llamafile_full_path = os.path.join(pathtollama, llamaname)
+        llamafile_full_path = os.path.join(pathtollama, llamaname)
 
-            log_dir = "logs"
-            if not os.path.exists(log_dir):
-                os.makedirs(log_dir)
-            log_file_path = os.path.join(log_dir, f"llamafile_{Modelname}.log")
-            log_file = open(log_file_path, "w")
-
-            if os.name == "nt":
-                cmd_args = [
-                    llamafile_full_path,
-                    "--server",
-                    "--host",
-                    "127.0.0.1",
-                    "--port",
-                    str(allocated_port),
-                    "--nobrowser",
-                    "-m",
-                    path,
-                ]
-                process = subprocess.Popen(
-                    cmd_args, stdout=log_file, stderr=subprocess.STDOUT, text=True
-                )
-            else:
-                shell_cmd = f"'{llamafile_full_path}' --server --host 127.0.0.1 --port {allocated_port} -m '{path}'"
-                process = subprocess.Popen(
-                    ["sh", "-c", shell_cmd],
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                )
-
-            time.sleep(2)
-
-            if process.poll() is not None:
-                print(f"[!] Server failed to start. See error log: {log_file_path}")
-            else:
-                print(f"[+] Success! Llamafile is live in the background.")
-                print(f"[+] API Endpoint: http://127.0.0.1:{allocated_port}/v1")
-                print(f"[+] Background PID: {process.pid}")
-                print(f"[+] Logs are being written to: {log_file_path}")
-                try:
-                    import urllib.request, json
-                    data = json.dumps({"port": allocated_port}).encode('utf-8')
-                    req = urllib.request.Request("http://127.0.0.1:8080/api/modelport", data=data, headers={'Content-Type': 'application/json'})
-                    urllib.request.urlopen(req, timeout=2)
-                except Exception as err:
-                    print(f"[~] Could not notify web server on port 8080: {err}")
-        else:
+        if not os.path.exists(path):
             print(f"[!] Error: GGUF model file not found at: {path}")
+            return
+
+        allocated_port = find_free_port()
+
+        log_dir = os.path.join(PROJECT_ROOT, "logs")
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        log_file_path = os.path.join(log_dir, f"llamafile_{Modelname}.log")
+        log_file = open(log_file_path, "w")
+
+        if os.name == "nt":
+            cmd_args = [
+                llamafile_full_path,
+                "--server",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(allocated_port),
+                "--nobrowser",
+                "-m",
+                path,
+            ]
+            process = subprocess.Popen(
+                cmd_args, stdout=log_file, stderr=subprocess.STDOUT, text=True
+            )
+        else:
+            shell_cmd = f"'{llamafile_full_path}' --server --host 127.0.0.1 --port {allocated_port} -m '{path}'"
+            process = subprocess.Popen(
+                ["sh", "-c", shell_cmd],
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+
+        time.sleep(2)
+
+        if process.poll() is not None:
+            print(f"[!] Server failed to start. See error log: {log_file_path}")
+        else:
+            print(f"[+] Success! Llamafile is live in the background.")
+            print(f"[+] API Endpoint: http://127.0.0.1:{allocated_port}/v1")
+            print(f"[+] Background PID: {process.pid}")
+            print(f"[+] Logs are being written to: {log_file_path}")
+            try:
+                import urllib.request, json
+                data = json.dumps({"port": allocated_port}).encode('utf-8')
+                req = urllib.request.Request("http://127.0.0.1:8080/api/modelport", data=data, headers={'Content-Type': 'application/json'})
+                urllib.request.urlopen(req, timeout=2)
+            except Exception as err:
+                print(f"[~] Could not notify web server on port 8080: {err}")
 
     except Exception as e:
         print(f"Error occurred: {e}")
 
 
 def youchoose():
-    path = "models/"
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+    path = os.path.join(PROJECT_ROOT, "models")
     if os.path.exists(path):
         for filename in os.listdir(path):
             if filename.endswith(".gguf"):
