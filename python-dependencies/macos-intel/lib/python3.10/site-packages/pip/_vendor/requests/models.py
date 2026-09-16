@@ -34,11 +34,9 @@ from .compat import (
     builtin_str,
     chardet,
     cookielib,
-    urlencode,
-    urlsplit,
-    urlunparse,
 )
 from .compat import json as complexjson
+from .compat import urlencode, urlsplit, urlunparse
 from .cookies import _copy_cookie_jar, cookiejar_from_dict, get_cookie_header
 from .exceptions import (
     ChunkedEncodingError,
@@ -47,11 +45,11 @@ from .exceptions import (
     HTTPError,
     InvalidJSONError,
     InvalidURL,
-    MissingSchema,
-    StreamConsumedError,
 )
 from .exceptions import JSONDecodeError as RequestsJSONDecodeError
+from .exceptions import MissingSchema
 from .exceptions import SSLError as RequestsSSLError
+from .exceptions import StreamConsumedError
 from .hooks import default_hooks
 from .status_codes import codes
 from .structures import CaseInsensitiveDict
@@ -172,7 +170,7 @@ class RequestEncodingMixin:
                         )
                     )
 
-        for k, v in files:
+        for (k, v) in files:
             # support for explicit filename
             ft = None
             fh = None
@@ -270,6 +268,7 @@ class Request(RequestHooksMixin):
         hooks=None,
         json=None,
     ):
+
         # Default empty dicts for dict params.
         data = [] if data is None else data
         files = [] if files is None else files
@@ -278,7 +277,7 @@ class Request(RequestHooksMixin):
         hooks = {} if hooks is None else hooks
 
         self.hooks = default_hooks()
-        for k, v in list(hooks.items()):
+        for (k, v) in list(hooks.items()):
             self.register_hook(event=k, hook=v)
 
         self.method = method
@@ -791,12 +790,7 @@ class Response:
     @property
     def apparent_encoding(self):
         """The apparent encoding, provided by the charset_normalizer or chardet libraries."""
-        if chardet is not None:
-            return chardet.detect(self.content)["encoding"]
-        else:
-            # If no character detection library is available, we'll fall back
-            # to a standard Python utf-8 str.
-            return "utf-8"
+        return chardet.detect(self.content)["encoding"]
 
     def iter_content(self, chunk_size=1, decode_unicode=False):
         """Iterates over the response data.  When stream=True is set on the
@@ -871,6 +865,7 @@ class Response:
         for chunk in self.iter_content(
             chunk_size=chunk_size, decode_unicode=decode_unicode
         ):
+
             if pending is not None:
                 chunk = pending + chunk
 
@@ -947,9 +942,7 @@ class Response:
         return content
 
     def json(self, **kwargs):
-        r"""Decodes the JSON response body (if any) as a Python object.
-
-        This may return a dictionary, list, etc. depending on what is in the response.
+        r"""Returns the json-encoded content of a response, if any.
 
         :param \*\*kwargs: Optional arguments that ``json.loads`` takes.
         :raises requests.exceptions.JSONDecodeError: If the response body does not
