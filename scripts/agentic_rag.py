@@ -1,9 +1,13 @@
 import logging
 import os
+import sys
 from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
-from langchain_chroma import Chroma
+try:
+    from langchain_chroma import Chroma
+except ImportError:
+    from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -15,6 +19,17 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
+
+def get_embedding_device():
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+    except Exception:
+        pass
+    return "cpu"
 
 class Chunking:
     def __init__(self, path, embedding_model, chunk_size=800, chunk_overlap=80):
@@ -31,9 +46,15 @@ class Chunking:
                 Path(self.path).touch()
                 return []
             
-            loader = TextLoader(self.path)
-            docs = loader.load()
-            return docs
+            encodings = ["utf-8", "latin-1", "cp1252"]
+            for enc in encodings:
+                try:
+                    loader = TextLoader(self.path, encoding=enc)
+                    docs = loader.load()
+                    return docs
+                except Exception:
+                    continue
+            return []
         except Exception as e:
             logging.error(f"Text Loader error: {e}")
             return []
@@ -97,24 +118,27 @@ class Retrieval:
             return []
 
 class Generation:
-    def __init__(self, temp, port, api_key):
+    def __init__(self, temp=0.7, port=8080, api_key=None):
         self.temp = temp
         self.port = port
         self.api_key = api_key
         
+        device = get_embedding_device()
         print("Loading embedding model into memory... (Only happens once)")
         self.embedding_model = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2"
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_kwargs={"device": device}
         )
         
+        base_url = f"http://localhost:{self.port}/v1"
         self.llm_implementation = ChatOpenAI(
-            base_url=f"http://localhost:{self.port}/v1",
+            base_url=base_url,
             api_key=self.api_key or "NOT-NEEDED",
             model="Local LLM",
             temperature=self.temp
         )
         self.llm_agentic = ChatOpenAI(
-            base_url=f"http://localhost:{self.port}/v1",
+            base_url=base_url,
             api_key=self.api_key or "NOT-NEEDED",
             model="Local LLM",
             temperature=0.3
@@ -133,14 +157,16 @@ class Generation:
                      
         if results and len(results) > 0:
             prompt_context = "\n\n".join([result.page_content for result in results])
-            prompt_context = '\n'.join(prompt_context.split('\n')[1:])
-            print(f"Retrieved Context: {prompt_context}...")  
+            lines = prompt_context.split('\n')
+            if len(lines) > 1:
+                prompt_context = '\n'.join(lines[1:])
+            print(f"Retrieved Context: {prompt_context[:200]}...")  
             
             prompt_template = ChatPromptTemplate.from_messages([
                 (
                     "system",
                     "You are an AI assistant that writes code strictly based on the provided context.\n"
-                    "You only write code and no explabations. only code.\n"
+                    "You only write code and no explanations. Only code.\n"
                     "If a clear implementation plan is visible in the context, complete the immediate step and output exactly 'step.no done', then stop.\n"
                     "If the user request cannot be addressed by the context, reply with 'FALLBACK' and stop.\n"
                     "If planning to use an external library, include pip install <library> first.\n"
@@ -170,10 +196,14 @@ class Generation:
             chain = prompt_template | self.llm_implementation
             response = chain.invoke({"query": query})
             try:
-                with open("implementation.txt", "w") as f:
+                with open("implementation.txt", "w", encoding="utf-8") as f:
                     f.write(response.content)
                 self._fallback_used = True  
                 logging.info("Implementation plan written to file")
+                
+                # Immediately index the newly generated plan into Chroma
+                chunker = Chunking("implementation.txt", self.embedding_model)
+                chunker.chunker()
             except Exception as e:
                 logging.error(f"Failed to write implementation.txt: {e}")
             
@@ -182,10 +212,26 @@ class Generation:
 
 if __name__ == "__main__":
     try:
-        generates = Generation(0.8, 49494, "Noneatall")
-        print("\nRunning generator...")
-        result = generates.generate("write me a code that takes a list of sting and a alphabet and returns the list of numbers the words appeared in the list")
-        print(f"\nResult:\n{result}")
+        port_env = os.getenv("LUMINA_PORT")
+        port = int(port_env) if (port_env and port_env.isdigit()) else 53247
+        prompt = "create a python todo app with add, list, mark complete, delete, and json storage"
+        
+        args = sys.argv[1:]
+        non_flag_args = []
+        for arg in args:
+            if arg.isdigit():
+                port = int(arg)
+            else:
+                non_flag_args.append(arg)
+                
+        if non_flag_args:
+            prompt = " ".join(non_flag_args)
+            
+        generates = Generation(0.7, port, "Noneatall")
+        print(f"\n[Lumina Agentic] Running generator on port {port}...")
+        print(f"[Lumina Agentic] Task: {prompt}")
+        result = generates.generate(prompt)
+        print(f"\n[Lumina Agentic] Result:\n{result}")
     except Exception as e:
         logging.error(f"Main execution error: {e}")
         print(f"Error occurred: {e}")
