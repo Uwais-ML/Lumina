@@ -2,6 +2,9 @@ target/
 src/main/java/com/example/LLMs/
 /models/
 **/.cache/
+__pycache__/
+*.pyc
 .DS_Store
 **/.DS_Store
+
 

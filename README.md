@@ -1,168 +1,145 @@
 # ⚡ Lumina AI Engine
 
-**Lumina** is a self-contained, cross-platform local LLM infrastructure, hardware performance predictor, and Agentic RAG engine. It delivers zero-dependency, local-first AI execution with an integrated Web Store dashboard, real-time code completion server, and hardware bandwidth predictor.
-
-Lumina is **100% self-sustained** — shipping with pre-bundled JREs, embedded Python environments, pre-packaged Java libraries (`./lib/`), and an OS-agnostic dynamic dispatcher.
-
----
-
-## ⚡ Coming Soon: Lumina SmartSwitch™
-
-> [!IMPORTANT]
-> **SmartSwitch™ (In Active Development)**
-> An intelligent model routing engine that dynamically evaluates prompt complexity, real-time hardware memory pressure (VRAM/RAM), and target latency requirements. SmartSwitch automatically routes requests on-the-fly between sub-second lightweight models (e.g., Qwen 0.5B) and heavy reasoning models (e.g., Llama 3B / DeepSeek) with zero manual intervention.
+> **A self-contained, cross-platform local AI toolchain and inference framework.**  
+> Plug & play out of the box on macOS, Windows, and Linux — zero external dependencies, zero environment configuration.
 
 ---
 
-## 📐 System Architecture
+## ✨ Features
 
-```
-                               ┌─────────────────────────┐
-                               │     User Interface      │
-                               │  (CLI / Web Store UI)   │
-                               └────────────┬────────────┘
-                                            │
-                               ┌────────────▼────────────┐
-                               │   Lumina CLI Engine     │
-                               │      (Lumina.py)        │
-                               └────────────┬────────────┘
-                                            │
-               ┌────────────────────────────┼────────────────────────────┐
-               │                            │                            │
-   ┌───────────▼───────────┐    ┌───────────▼───────────┐    ┌───────────▼───────────┐
-   │ Lumina Web Backend    │    │ Hardware Predictor    │    │ Local RAG Engine      │
-   │ (LuminaWebServer)     │    │ (SystemAssess + OSHI) │    │ (LangChain + Chroma)  │
-   └───────────┬───────────┘    └───────────┬───────────┘    └───────────┬───────────┘
-               │                            │                            │
-               └────────────────────────────┼────────────────────────────┘
-                                            │
-                               ┌────────────▼────────────┐
-                               │ Local Inference Engine  │
-                               │  (llamafile / GGUF)     │
-                               └─────────────────────────┘
-```
+- 🔌 **Plug & Play Runtime** — Bundles its own isolated JRE and CPython environments. No need to install Java, Python, or build tools globally.
+- ⚡ **Hardware Performance Predictor** — Senses memory bandwidth using OSHI and predicts exact tokens/sec generation speed before running models.
+- 🏪 **Interactive Web Dashboard & Store** — Explore, monitor, download, and test local GGUF models through a browser-based UI (`http://localhost:8080`).
+- 🤖 **Offline RAG & Agentic Reasoning** — Local document ingestion, semantic chunking, Chroma vector storage, and multi-step reasoning.
+- 🚀 **High-Performance Inference** — Runs quantized `.gguf` weights locally via an embedded, multi-platform Llamafile server with an OpenAI-compatible API.
+- 🎨 **Enterprise CLI UI & Smart Logging** — Noise-filtered, ANSI-branded terminal interface with full timestamped audit logs recorded to `logs/lumina.log`.
 
 ---
 
-## 🔬 How Lumina Works: Technical Deep Dive
+## 🚀 Quick Start
 
-### 1. Dynamic OS Detection & Runtime Resolution (`Lumina.py`)
-Rather than relying on global system environment variables (`JAVA_HOME`, `PATH`), `Lumina.py` inspects the host operating system at startup:
-- **OS Identification**: Distinguishes between `macos`, `windows`, and `linux`.
-- **Runtime Resolution**: Dynamically maps to the correct bundled JRE (`Jre/Mac-intel/...` or `Jre/Windows/...`) and Python environment (`python-dependencies/...`).
-- **Classpath Assembly**: Assembles a self-contained Java classpath from `./target/classes` and `./lib/*.jar` without requiring Maven at runtime.
+Clone the repository and run the Lumina CLI wrapper:
 
-### 2. Hardware Sensing & Bandwidth Predictor (`SystemAssess.java`)
-Local LLM execution speed on CPU/unified memory is fundamentally memory-bandwidth bound. Lumina uses **OSHI (Operating System and Hardware Information)** to query system hardware directly:
-- **Bandwidth Calculation**: Measures true memory throughput ($GB/s$) by executing test prompts against known model byte sizes ($GB$) and tracking prompt token generation speed:
-  $$\text{Memory Bandwidth (GB/s)} = \frac{\text{Model Size (GB)} \times \text{Tokens/sec}}{\text{Pass Count}}$$
-- **Fitting Algorithm (`willitfit()`)**: Evaluates model parameter count and quantization bit-width to verify if the uncompressed weights fit within system VRAM/RAM:
-  $$\text{Model Size (GB)} = \text{Parameters (B)} \times \left(\frac{\text{Quantization Bits}}{8}\right)$$
-
-### 3. Portable Inference Engine (`Runit.java` & `llamafile`)
-Lumina uses an embedded **Llamafile** binary (`resources/llamafile/llamafile-0.10.4-thin`) to serve local `.gguf` weights:
-- **Background Server Binding**: Searches for an available local TCP port, spawns a background `llamafile` subprocess, and exposes an OpenAI-compatible HTTP endpoint (`http://127.0.0.1:<port>/v1/completions`).
-- **Process Isolation & Lifecycle**: Managed via Java `ProcessBuilder` with shutdown hooks ensuring zero orphaned processes upon termination.
-
-### 4. Multi-Threaded Web Server (`LuminaWebServer.java`)
-Built on Java's `com.sun.net.httpserver.HttpServer`:
-- **`GET /api/models`**: Reads model catalog from `resources/llmstore.json`, runs hardware fit analysis, and returns computed token speed predictions.
-- **`GET /api/system`**: Returns host OS, CPU architecture, and measured bandwidth.
-- **`POST /api/complete`**: Receives prompt completions from the IDE Web UI and proxies them to the active local Llamafile instance.
-- **`POST /api/install`**: Executes background HuggingFace model downloads with live SSE log streaming (`GET /api/status`).
-
-### 5. Local RAG & Agentic RAG Engine (`scripts/rag.py` & `scripts/agentic_rag.py`)
-Provides offline document retrieval and multi-step reasoning:
-- **Text Chunking**: Uses `RecursiveCharacterTextSplitter` (chunk size: 800, overlap: 80).
-- **Vector Storage**: Embeds chunks using HuggingFace BGE transformers and stores vectors in a local `chroma_db/` instance.
-- **Agentic Loop**: Executes iterative retrieval-augmented prompt engineering with structured logging written to `logs/Agentic.log`.
-
----
-
-## 🚀 Quick Start Guide
-
-Use the top-level wrapper (`./lumina` on macOS/Linux or `lumina.bat` on Windows):
-
+### macOS / Linux
 ```bash
-# Display CLI menu and auto-detected system runtimes
+# Make sure wrapper is executable (first time only)
+chmod +x lumina
+
+# Open the interactive Lumina CLI
 ./lumina
+```
 
-# 1. Launch the Lumina Web Server & Model Store Dashboard
+### Windows (PowerShell / Command Prompt)
+```cmd
+# Open the interactive Lumina CLI
+.\lumina.bat
+```
+
+---
+
+## 📖 Command Reference
+
+Lumina provides a unified CLI dispatcher for all operations.
+
+| Command | Purpose | Example |
+| :--- | :--- | :--- |
+| `--models` | Launches the local Web Dashboard & Model Store | `./lumina --models` |
+| `--assess` | Senses hardware & predicts tokens/sec for target models | `./lumina --assess` |
+| `--bench` | Runs local hardware benchmark across GGUF models | `./lumina --bench` |
+| `--setup` | Downloads default base GGUF models | `./lumina --setup` |
+| `--launch` | Spawns a background GGUF model server with OpenAI API | `./lumina --launch Llama-3.2-1B-Instruct-Q4_K_M` |
+| `--rag` | Ingests documents and runs local vector search (Chroma) | `./lumina --rag` |
+| `--agentic` | Executes multi-step Agentic RAG reasoning loop | `./lumina --agentic` |
+| `--download` | Downloads a model directly from HuggingFace | `./lumina --download` |
+| `--install` | Installs Python packages into the bundled runtime | `./lumina --install scikit-learn` |
+| `--dependencies` | Validates & installs all required Python dependencies | `./lumina --dependencies` |
+
+---
+
+## 💻 Common Workflows
+
+### 1. Launching the Web Store & Model Manager
+Launch the local web server and open your browser:
+```bash
 ./lumina --models
+```
+👉 Open **`http://localhost:8080`** to view available models, inspect RAM requirements, and test code completions in the built-in IDE.
 
-# 2. Run hardware benchmark across local GGUF models
-./lumina --bench
+---
 
-# 3. Estimate hardware bandwidth and predicted token speed
+### 2. Assessing Your Hardware
+Before downloading large models, check your system's memory bandwidth and predicted tokens/sec:
+```bash
 ./lumina --assess
+```
+```text
+[Lumina Java] Detected OS: macos | JRE: .../jdk-25.0.4+7-jre/...
+[Lumina Assess] 📊 Calculated True Bandwidth: 28.54 GB/s
+[Lumina Assess] ⚡ Estimated tokens/sec for 1.5B Q4: 25.85 tok/s
+[Lumina SystemAssess] ✔ SystemAssess completed successfully.
+```
 
-# 4. Run local RAG vector store pipeline
-./lumina --rag
+---
 
-# 5. Run multi-step Agentic RAG reasoning engine
-./lumina --agentic
-
-# 6. Launch a specific GGUF model via llamafile server
+### 3. Launching a Local Model Server
+Start an OpenAI-compatible local model server in the background:
+```bash
 ./lumina --launch Llama-3.2-1B-Instruct-Q4_K_M
+```
+* **API Endpoint**: `http://127.0.0.1:<port>/v1/chat/completions`
+* **Log Location**: `logs/llamafile_<model>.log`
 
-# 7. Download base test models
-./lumina --setup
+---
+
+### 4. Running Offline Document RAG
+Query your local knowledge base without sending data to the cloud:
+```bash
+./lumina --rag
 ```
 
 ---
 
-## 📁 Repository Structure
+## 📁 Project Structure
 
-```
+```text
 Lumina/
-├── Lumina.py                          # Dynamic OS detector & CLI dispatcher
-├── lumina                             # Executable CLI script (macOS/Linux)
-├── lumina.bat                         # Executable Batch script (Windows)
-├── SWAPPABLE.md                       # Modular component swapping guide
-├── pom.xml                            # Maven build configuration
-├── README.md / LICENSE
-│
-├── src/
-│   ├── java/lumina/                   # Lumina Java source (package `lumina`)
-│   │   ├── LuminaWebServer.java       # Local HTTP server & REST API
-│   │   ├── SystemAssess.java          # OSHI hardware sensor & bandwidth predictor
-│   │   ├── Runit.java                 # Llamafile benchmark engine
-│   │   ├── LLM.java                   # Model metadata & store parser
-│   │   └── downloadmodel.java         # HuggingFace model downloader bridge
-│   ├── main/resources/web/            # Frontend Web UI (index.html, ide.html)
-│   └── test/java/lumina/              # Unit test suites
-│
-├── scripts/                           # Python RAG & Agentic scripts
-│   ├── rag.py                         # Text chunking, embedding & Chroma RAG
-│   ├── agentic_rag.py                 # Multi-step Agentic RAG reasoning engine
-│   ├── launch_model.py                # Llamafile model server launcher
-│   ├── download_base_models.py        # Base models downloader
-│   └── download_model.py              # HuggingFace hub model downloader
-│
-├── models/                            # Local GGUF model files (.gguf)
-├── resources/                         # Shared project assets
-│   ├── bandwidth.txt                  # Measured system memory bandwidth
-│   ├── llmstore.json                  # Model catalog & quantization specs
-│   ├── web/                           # Web assets (index.html, ide.html)
-│   └── llamafile/                     # Portable Llamafile executable
-│
-├── lib/                               # Bundled Java dependencies (OSHI, Jackson, JNA, Requests)
-├── logs/                              # Execution & Agentic RAG log directory
-├── chroma_db/                         # Local Chroma vector database
-├── Jre/                               # Bundled JRE runtimes (Mac-intel, Windows)
-└── python-dependencies/               # Bundled Python runtimes (Mac-intel, Windows)
+├── Lumina.py               # Unified cross-platform CLI dispatcher
+├── lumina                  # CLI launcher for macOS / Linux
+├── lumina.bat              # CLI launcher for Windows
+├── models/                 # Local GGUF models directory (.gguf)
+├── scripts/                # Python inference, RAG, and launcher scripts
+│   ├── rag.py              # Document ingestion & Chroma vector search
+│   ├── agentic_rag.py      # Multi-step Agentic reasoning pipeline
+│   ├── launch_model.py     # Local GGUF model server launcher
+│   └── download_base_models.py
+├── src/java/lumina/        # Core Java backend & Web Server
+│   ├── LuminaWebServer.java# HTTP server & API endpoints
+│   ├── SystemAssess.java   # Hardware bandwidth sensor & predictor
+│   └── Runit.java          # Benchmark runner
+├── resources/              # Web UI templates & llamafile binaries
+│   ├── web/                # Web Dashboard (index.html, ide.html)
+│   └── llamafile/          # Multi-platform llamafile binary
+├── logs/                   # Raw timestamped execution logs (lumina.log)
+├── Jre/                    # Bundled JRE runtimes (macOS, Windows)
+└── python-dependencies/    # Bundled CPython runtimes (macOS, Windows)
 ```
 
 ---
 
-## 🔄 Swappable Architecture
+## 🔍 Diagnostics & Logs
 
-Lumina is designed to be fully modular. See **[`SWAPPABLE.md`](file:///Users/apple/Lumina/SWAPPABLE.md)** for step-by-step instructions on how to swap:
-- **GGUF Models**: Drop new models directly into `models/`.
-- **Inference Engines**: Replace Llamafile with Ollama, vLLM, or `llama-server`.
-- **Vector DB & Embeddings**: Swap Chroma for FAISS, Qdrant, or custom embeddings.
-- **Runtimes**: Swap bundled JRE or CPython versions.
-- **Frontend UI**: Edit HTML/CSS/JS in `resources/web/`.
+Lumina keeps your terminal output clean and noise-free while recording 100% of raw subprocess output, timestamps, and error stacks to:
+```text
+logs/lumina.log
+```
+If you ever encounter an issue, inspect `logs/lumina.log` for complete diagnostic traces.
+
+---
+
+## 📚 Advanced Documentation
+
+- 🔄 **[SWAPPABLE.md](file:///Users/apple/Lumina/SWAPPABLE.md)** — Guide to swapping GGUF models, inference backends (Ollama/vLLM), vector stores (FAISS/Chroma), and runtimes.
+- 📐 **[ARCHITECTURE.md](file:///Users/apple/Lumina/ARCHITECTURE.md)** — Deep dive into system architecture, hardware sensing formulas, and runtime resolution.
 
 ---
 
