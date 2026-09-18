@@ -11,19 +11,26 @@ def find_free_port():
         return s.getsockname()[1]
 
 
-def launchmodel(Modelname=None):
+def launchmodel(Modelname=None, port=None):
     if Modelname is None:
         if len(sys.argv) < 2:
             print("[!] Error: Missing model name argument.")
-            print("Usage: python3 launch_model.py <ModelName>")
-            return
+            print("Usage: python3 launch_model.py <ModelName> [port]")
+            return None
         Modelname = sys.argv[1]
+
+    if port is None and len(sys.argv) > 2:
+        try:
+            port = int(sys.argv[2])
+        except ValueError:
+            port = None
 
     # Resolve project root from this script's location (scripts/ is one level deep)
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
     model_file = Modelname if Modelname.endswith(".gguf") else Modelname + ".gguf"
+    base_model_name = Modelname[:-5] if Modelname.endswith(".gguf") else Modelname
     path = os.path.join(PROJECT_ROOT, "models", model_file)
     pathtollama = os.path.join(PROJECT_ROOT, "resources", "llamafile")
     llamaname = "llamafile-0.10.4-thin"
@@ -38,7 +45,7 @@ def launchmodel(Modelname=None):
                 llamaname += ".exe"
             elif not os.path.exists(bare_path):
                 print(f"[!] Error: Llamafile binary not found at: {exe_path} or {bare_path}")
-                return
+                return None
         else:
             llama_bin = os.path.join(pathtollama, llamaname)
             if os.path.exists(llama_bin):
@@ -48,14 +55,14 @@ def launchmodel(Modelname=None):
 
         if not os.path.exists(path):
             print(f"[!] Error: GGUF model file not found at: {path}")
-            return
+            return None
 
-        allocated_port = find_free_port()
+        allocated_port = int(port) if port is not None else find_free_port()
 
         log_dir = os.path.join(PROJECT_ROOT, "logs")
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-        log_file_path = os.path.join(log_dir, f"llamafile_{Modelname}.log")
+        log_file_path = os.path.join(log_dir, f"llamafile_{base_model_name}.log")
         log_file = open(log_file_path, "w")
 
         if os.name == "nt":
@@ -86,6 +93,7 @@ def launchmodel(Modelname=None):
 
         if process.poll() is not None:
             print(f"[!] Server failed to start. See error log: {log_file_path}")
+            return None
         else:
             print(f"[+] Success! Llamafile is live in the background.")
             print(f"[+] API Endpoint: http://127.0.0.1:{allocated_port}/v1")
@@ -99,8 +107,11 @@ def launchmodel(Modelname=None):
             except Exception as err:
                 print(f"[~] Could not notify web server on port 8080: {err}")
 
+            return {"pid": process.pid, "port": allocated_port, "process": process, "model": base_model_name}
+
     except Exception as e:
         print(f"Error occurred: {e}")
+        return None
 
 
 def youchoose():
@@ -125,6 +136,7 @@ def youchoose():
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        launchmodel(sys.argv[1])
+        target_port = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else None
+        launchmodel(sys.argv[1], port=target_port)
     else:
-        launchmodel("Phi-3.5-mini-instruct-Q4_K_M")
+        launchmodel("Llama-3.2-1B-Instruct-Q4_K_M")

@@ -460,6 +460,11 @@ COMMANDS = {
         "target": os.path.join(PROJECT_ROOT, "scripts", "launch_model.py"),
         "description": "Launches a specific GGUF model via llamafile server",
     },
+    "--switch": {
+        "type": "python",
+        "target": os.path.join(PROJECT_ROOT, "scripts", "Smartswitch.py"),
+        "description": "Runs Smart Switch watchdog for auto same-port model fallback",
+    },
     "--install": {
         "type": "builtin",
         "description": "Installs Python package(s) into the bundled Python env  [usage: --install <pkg ...>]",

@@ -84,8 +84,18 @@ By bundling its own isolated JRE and CPython runtimes, Lumina runs instantly out
       <p>Private document ingestion, BGE semantic vector embeddings, ChromaDB vector store, and multi-step agentic reasoning loop.</p>
     </td>
     <td width="50%">
+      <h3>🔄 Smart Switch Circuit Breaker</h3>
+      <p>Continuous real-time monitoring of RAM inflation & token/s throughput with <b>auto same-port fallback</b> to keep downstream clients connected.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
       <h3>🛡️ Enterprise Output & Auditing</h3>
       <p>Clean ANSI terminal UX with intelligent noise suppression and 100% full raw audit trails recorded to <code>logs/lumina.log</code>.</p>
+    </td>
+    <td width="50%">
+      <h3>⚡ Port Continuity & Hot-Swapping</h3>
+      <p>Instant socket recycling enabling seamless fallback model promotion on the identical HTTP port without breaking active sessions.</p>
     </td>
   </tr>
 </table>
@@ -115,6 +125,7 @@ flowchart TB
     subgraph PythonSubsystem ["Python Subsystem (Bundled CPython)"]
         RAG_ENG["📄 ChromaDB Local RAG Engine"]
         AGENT_RAG["🧠 Multi-Step Agentic Reasoning Loop"]
+        SMART_SW["🔄 Smart Switch Watchdog<br/>(Same-Port Fallback Monitor)"]
         DL_MGR["📥 HuggingFace GGUF Downloader"]
     end
 
@@ -122,6 +133,7 @@ flowchart TB
         LLAMAFILE["🚀 Embedded llamafile Server (`127.0.0.1:<port>`)"]
         GGUF_MODELS[("📦 Local GGUF Weights (`models/`)")]
         CHROMA_DB[("🗄️ Vector Store (`chroma_db/`)")]
+        STATUS_DB[("📊 Model Status & Telemetry (`data/status.txt`)")]
     end
 
     CLI --> DISPATCH
@@ -135,6 +147,8 @@ flowchart TB
     RAG_ENG --> CHROMA_DB
     AGENT_RAG --> CHROMA_DB
     AGENT_RAG --> LLAMAFILE
+    SMART_SW --> STATUS_DB
+    SMART_SW --> LLAMAFILE
     LLAMAFILE --> GGUF_MODELS
 ```
 
@@ -182,6 +196,7 @@ Lumina provides a unified CLI interface for managing all operations:
 | **`--bench`** | ⚡ Benchmark | Executes local hardware benchmark on GGUF models | `./lumina --bench` |
 | **`--setup`** | 📥 Downloader | Pulls default base GGUF model weights | `./lumina --setup` |
 | **`--launch`** | 🚀 Inference | Starts background model server (OpenAI API) | `./lumina --launch Llama-3.2-1B-Instruct-Q4_K_M` |
+| **`--switch`** | 🔄 Circuit Breaker | Monitors throughput/RAM & auto hot-swaps on same port | `./lumina --switch Qwen2.5-0.5B-Instruct-Q4_K_M 0.25` |
 | **`--rag`** | 🤖 Knowledge | Ingests documents into local Chroma vector store | `./lumina --rag` |
 | **`--agentic`** | 🧠 Agent | Runs multi-step Agentic RAG reasoning loop | `./lumina --agentic` |
 | **`--download`** | 📥 Downloader | Downloads custom GGUF models from HuggingFace | `./lumina --download` |
@@ -208,7 +223,25 @@ Spawns an asynchronous Java HTTP server serving a rich, responsive Web UI:
 
 ---
 
-### 2. 📊 Hardware Sensing & Bandwidth Predictor (`--assess`)
+### 2. 🔄 Smart Switch & Same-Port Model Fallback (`--switch`)
+Smart Switch operates as an intelligent local watchdog and circuit breaker:
+- **Telemetry Ingestion**: Continuously tracks model PID, RSS memory footprint, and tokens/sec generation speed via server evaluation logs.
+- **Degradation Detection**: Automatically triggers when generation speed drops below **75%** of baseline throughput ($< 0.75 \times T_{\text{baseline}}$) or memory exceeds the allowance threshold.
+- **Zero-Downtime Port Continuity**: Automatically terminates the degraded process, recycles the TCP socket, and boots the fallback model on the **exact same port**, keeping all connected clients (Web UI, RAG pipelines, IDEs) connected without reconfiguration!
+
+```bash
+./lumina --switch Qwen2.5-0.5B-Instruct-Q4_K_M 0.25
+```
+```text
+[Lumina Smartswitch] 🚀 Smart Switch started. Fallback Model: 'Qwen2.5-0.5B-Instruct-Q4_K_M' | RAM allowance: 25.0%
+[Lumina Smartswitch] ⚠️ Speed degradation detected for 'Llama-3.2-1B': baseline=24.50 T/s -> current=15.20 T/s (< 75%)
+[Lumina Smartswitch] 🚨 Triggering Smart Switch! Replacing with fallback on same port 53247...
+[Lumina Smartswitch] ✔ Successfully switched to 'Qwen2.5-0.5B-Instruct-Q4_K_M' on port 53247!
+```
+
+---
+
+### 3. 📊 Hardware Sensing & Bandwidth Predictor (`--assess`)
 Local LLM generation speed on CPU/unified memory is fundamentally bounded by memory bus bandwidth. Lumina directly calculates throughput:
 
 $$\text{Memory Bandwidth (GB/s)} = \frac{\text{Model Size (GB)} \times \text{Tokens/sec}}{\text{Pass Count}}$$
@@ -277,6 +310,7 @@ Lumina/
 ├── 🪟 lumina.bat              # CLI launcher script (Windows)
 ├── 📦 models/                 # Local GGUF model storage directory
 ├── 🐍 scripts/                # Python pipelines & launchers
+│   ├── Smartswitch.py         # Smart Switch watchdog & same-port fallback monitor
 │   ├── rag.py                 # Document ingestion & Chroma vector search
 │   ├── agentic_rag.py         # Multi-step Agentic RAG reasoning loop
 │   ├── launch_model.py        # Background llamafile server launcher
