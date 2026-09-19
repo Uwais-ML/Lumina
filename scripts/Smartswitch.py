@@ -5,6 +5,8 @@ import json
 import logging
 import psutil
 
+Killed_model = None
+
 # Add scripts directory to sys.path so we can import launch_model cleanly
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -21,7 +23,6 @@ logging.basicConfig(
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 LOGS_DIR = os.path.join(PROJECT_ROOT, "logs")
 STATUS_FILE = os.path.join(DATA_DIR, "status.txt")
-
 
 def killprocess(pid):
     """Gracefully terminates a process by PID, falling back to kill if needed."""
@@ -161,6 +162,7 @@ def parse_eval_tokens_per_second(log_file_path):
 
 
 def runforever(base_model="Qwen2.5-0.5B-Instruct-Q4_K_M", ram_allowance=0.25, check_interval=2.0):
+    global Killed_model
     """
     Monitors active LLM processes. If memory inflates past the threshold or inference speed
     drops by > 25%, the degraded model is replaced by base_model on the exact same port.
@@ -168,9 +170,12 @@ def runforever(base_model="Qwen2.5-0.5B-Instruct-Q4_K_M", ram_allowance=0.25, ch
     logging.info(f"🚀 Smart Switch started. Fallback Model: '{base_model}' | RAM allowance: {ram_allowance * 100}%")
 
     base_model_clean = base_model[:-5] if base_model.endswith(".gguf") else base_model
-
+    start_time = time.perf_counter()
     while True:
         try:
+            current_time = time.perf_counter()
+            elapsed_time = current_time - start_time
+            """use some threshold logic for time"""
             if not os.path.exists(STATUS_FILE) or os.path.getsize(STATUS_FILE) == 0:
                 logging.info("Status tracker file is empty or missing. Waiting for models to launch...")
                 time.sleep(5)
@@ -248,7 +253,16 @@ def runforever(base_model="Qwen2.5-0.5B-Instruct-Q4_K_M", ram_allowance=0.25, ch
 
                     # Terminate degraded model process
                     killprocess(pid)
+                    Killed_model = key
                     time.sleep(1.5)  # Allow OS socket to be fully released
+
+                    # Auto-embed accumulated context to Chroma DB so fallback model retains memory
+                    try:
+                        import classifier
+                        logging.info("🧠 Smart Switch: Embedding session context into Chroma DB for seamless continuity...")
+                        classifier.embed_context_file()
+                    except Exception as ce:
+                        logging.warning(f"Could not auto-embed context during switch: {ce}")
 
                     # Launch fallback model on the exact same port
                     launch_result = launch_model.launchmodel(base_model, port=allocated_port)
@@ -283,8 +297,6 @@ def runforever(base_model="Qwen2.5-0.5B-Instruct-Q4_K_M", ram_allowance=0.25, ch
             logging.critical(f"Unexpected error in Smart Switch loop: {e}")
 
         time.sleep(check_interval)
-
-
 if __name__ == "__main__":
     target_base = sys.argv[1] if len(sys.argv) > 1 else "Qwen2.5-0.5B-Instruct-Q4_K_M"
     allowance = float(sys.argv[2]) if len(sys.argv) > 2 else 0.25

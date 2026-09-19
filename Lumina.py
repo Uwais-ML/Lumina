@@ -448,7 +448,17 @@ COMMANDS = {
     "--rag": {
         "type": "python",
         "target": os.path.join(PROJECT_ROOT, "scripts", "rag.py"),
-        "description": "Runs the local RAG vector store pipeline",
+        "description": "Runs the local RAG vector store pipeline (supports --context)",
+    },
+    "--context": {
+        "type": "python",
+        "target": os.path.join(PROJECT_ROOT, "scripts", "rag.py"),
+        "description": "Runs RAG with context persistence [usage: --context or --context --embed]",
+    },
+    "--embed": {
+        "type": "python",
+        "target": os.path.join(PROJECT_ROOT, "scripts", "rag.py"),
+        "description": "Embeds stored conversation context into vector store",
     },
     "--agentic": {
         "type": "python",
@@ -638,6 +648,8 @@ def main():
     if entry["type"] == "java":
         run_java(entry["target"], extra_args)
     elif entry["type"] == "python":
+        if command in ("--context", "--embed") and command not in extra_args:
+            extra_args = [command] + extra_args
         run_python(entry["target"], extra_args)
     elif entry["type"] == "builtin":
         if command == "--install":

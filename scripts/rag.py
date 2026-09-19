@@ -11,6 +11,7 @@ from langchain_core.documents import Document
 import hashlib
 import os
 import sys
+import classifier
 
 def get_embedding_device():
     try:
@@ -23,17 +24,6 @@ def get_embedding_device():
         pass
     return "cpu"
 
-if len(sys.argv) > 1:
-    file_path = sys.argv[1]
-else:
-    file_path = "data/sample.txt"
-
-if not os.path.exists(file_path):
-    print(f" Error: File not found: {file_path}")
-    print(f" Current directory: {os.getcwd()}")
-    sys.exit(1)
-
-print(f"Using file: {file_path}")
 
 def stopdeduplication(text):
     combined_texts = [str(c.page_content) for c in text if hasattr(c, 'page_content')]
@@ -265,6 +255,26 @@ class AIcall:
 
 if __name__ == "__main__":
     try:
+        context_enabled = "--context" in sys.argv
+        embed_only = "--embed" in sys.argv or "--embedd" in sys.argv
+
+        if embed_only:
+            print("🧠 Embedding context file into vector database...")
+            classifier.embed_context_file()
+            sys.exit(0)
+
+        non_flag_args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
+        file_path = non_flag_args[0] if non_flag_args else "data/sample.txt"
+
+        if not os.path.exists(file_path):
+            print(f" Error: File not found: {file_path}")
+            print(f" Current directory: {os.getcwd()}")
+            sys.exit(1)
+
+        print(f"Using file: {file_path}")
+        if context_enabled:
+            print("🧠 Context tracking & persistence enabled (--context)")
+
         port_env = os.getenv("LUMINA_PORT")
         if not port_env:
             port_input = input("Enter the port number [default 8080]: ").strip() or "8080"
@@ -292,10 +302,22 @@ if __name__ == "__main__":
                 
             retrieved_chunks = db.query_vectorsearch(vectorstore, query, k=3)
             
+            # Dynamic check: does the query refer to past context/history?
+            if classifier.needs_context(query):
+                print("🧠 Past context reference detected. Querying context vector store...")
+                context_chunks = classifier.searchforuserscontext(query, k=2)
+                if context_chunks:
+                    retrieved_chunks = list(retrieved_chunks) + list(context_chunks)
+
             ai = AIcall(model_name="Local LLM", port=port)
             answer = ai.generate_response(query, retrieved_chunks)
+
             print(f"ANSWER: {answer}")
-            
+            if context_enabled:
+                is_technical = classifier.classify(query, save=True)
+                if is_technical:
+                    classifier.classify(answer, save=True)
+
             if retrieved_chunks and len(retrieved_chunks) > 0:
                 print("\n SOURCES USED:")
                 for idx, chunk in enumerate(retrieved_chunks, 1):
