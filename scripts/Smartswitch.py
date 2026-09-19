@@ -64,8 +64,8 @@ def savecontext(log_path):
     return None
 
 
-def raminitilization(model_name, pid, port=None):
-    """Initializes and records model PID, allocated port, baseline RAM, and T/s in status.txt."""
+def raminitilization(model_name, pid, port=None, log_file=None):
+    """Initializes and records model PID, allocated port, baseline RAM, log file path, and T/s in status.txt."""
     try:
         os.makedirs(DATA_DIR, exist_ok=True)
         time.sleep(1)
@@ -87,18 +87,21 @@ def raminitilization(model_name, pid, port=None):
 
         # Clean model name key
         key = model_name[:-5] if model_name.endswith(".gguf") else model_name
+        if not log_file:
+            log_file = os.path.join(LOGS_DIR, f"llamafile_{key}.log")
 
         status_data[key] = {
             "PID": int(pid),
             "PORT": int(port) if port is not None else None,
             "RAM": f"{ram_gb:.2f} GB",
-            "T/s": 0.0
+            "T/s": 0.0,
+            "LOG_FILE": log_file
         }
 
         with open(STATUS_FILE, "w", encoding="utf-8") as f:
             json.dump(status_data, f, indent=4)
 
-        logging.info(f"Model '{key}' initialized (PID: {pid}, Port: {port}, RAM: {ram_gb:.2f} GB)")
+        logging.info(f"Model '{key}' initialized (PID: {pid}, Port: {port}, RAM: {ram_gb:.2f} GB, Log: {log_file})")
     except Exception as e:
         logging.error(f"Error saving model details for {model_name}: {e}")
 
@@ -106,8 +109,11 @@ def raminitilization(model_name, pid, port=None):
 ram_initialization = raminitilization
 
 
-def get_model_log_file(model_name):
+def get_model_log_file(model_name, info=None):
     """Returns the expected log file path for a model."""
+    if isinstance(info, dict) and info.get("LOG_FILE") and os.path.exists(info["LOG_FILE"]):
+        return info["LOG_FILE"]
+
     clean_name = model_name[:-5] if model_name.endswith(".gguf") else model_name
     candidates = [
         os.path.join(LOGS_DIR, f"llamafile_{clean_name}.log"),
@@ -218,7 +224,7 @@ def runforever(base_model="Qwen2.5-0.5B-Instruct-Q4_K_M", ram_allowance=0.25, ch
                     )
 
                 # 2. Check Tokens/sec performance degradation
-                log_file = get_model_log_file(key)
+                log_file = get_model_log_file(key, info)
                 tps_history = parse_eval_tokens_per_second(log_file)
                 perf_degraded = False
 
@@ -252,7 +258,16 @@ def runforever(base_model="Qwen2.5-0.5B-Instruct-Q4_K_M", ram_allowance=0.25, ch
                     if launch_result and "pid" in launch_result:
                         new_pid = launch_result["pid"]
                         new_port = launch_result["port"]
-                        raminitilization(base_model_clean, new_pid, port=new_port)
+                        new_log = launch_result.get("log_file")
+                        raminitilization(base_model_clean, new_pid, port=new_port, log_file=new_log)
+
+                        # Re-read status_data so status.txt retains new model info
+                        if os.path.exists(STATUS_FILE) and os.path.getsize(STATUS_FILE) > 0:
+                            with open(STATUS_FILE, "r", encoding="utf-8") as rf:
+                                try:
+                                    status_data = json.load(rf)
+                                except json.JSONDecodeError:
+                                    pass
                         logging.info(f"✔ Successfully switched to '{base_model_clean}' on same port {new_port}!")
                     else:
                         logging.error(f"✖ Failed to launch fallback model '{base_model_clean}' on port {allocated_port}.")
