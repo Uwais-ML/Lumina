@@ -209,7 +209,8 @@ Lumina provides a unified CLI with versatile arguments and flag combinations:
 | **`--switch`** | _[FallbackModel]_ _[RAM_limit]_ | 🔄 Watchdog | Runs Smart Switch with custom fallback model & custom RAM allowance | `./lumina --switch Qwen2.5-0.5B-Instruct-Q4_K_M 0.25` |
 | **`--launch`** | _[ModelName]_ | 🚀 Server | Spawns local OpenAI-compatible server for designated model | `./lumina --launch Llama-3.2-1B-Instruct-Q4_K_M` |
 | **`--launch`** | _[ModelName]_ _[Port]_ | 🚀 Server | Spawns local OpenAI-compatible server on specific port | `./lumina --launch Qwen2.5-0.5B-Instruct-Q4_K_M 8080` |
-| **`--agentic`** | _[file_path]_ | 🧠 Agent | Runs multi-step iterative Agentic RAG reasoning loop | `./lumina --agentic data/sample.txt` |
+| **`--agentic`** | **`--query`** _"task"_ | 🤖 Agent | Runs autonomous multi-step agent that chains tools to complete a task | `./lumina --agentic --query 'Save PyTorch info to a file'` |
+| **`--agentic`** | **`--query`** _"task"_ **`--iterations`** _N_ **`--verbose`** | 🤖 Agent | Agent with custom max iterations and full debug output | `./lumina --agentic -q 'Delete old file and create new one' -i 10 --verbose` |
 | **`--assess`** | _None_ | 📊 Hardware | Measures physical memory bus bandwidth & predicts tok/s | `./lumina --assess` |
 | **`--bench`** | _None_ | ⚡ Benchmark | Executes local hardware benchmark across GGUF models | `./lumina --bench` |
 | **`--download`**| _[ModelID]_ | 📥 Downloader | Interactive or direct HuggingFace GGUF model downloader | `./lumina --download` |
@@ -259,13 +260,38 @@ Lumina provides a unified CLI with versatile arguments and flag combinations:
 ./lumina --launch Llama-3.2-1B-Instruct-Q4_K_M 8080
 ```
 
-### 4. Agentic Reasoning & Knowledge Processing
-```bash
-# 1. Run multi-step agentic analysis on default document
-./lumina --agentic
+### 4. 🤖 Agentic Autonomous Agent
 
-# 2. Run multi-step agentic analysis on custom document
-./lumina --agentic data/research_paper.txt
+```bash
+# 1. Run agent with a simple task (defaults: port 54993, 5 iterations, temp 0.2)
+./lumina --agentic --query 'Save PyTorch release notes to pytorch_info.txt'
+
+# Short flag alias
+./lumina --agentic -q 'Search and summarize machine learning basics'
+
+# 2. Custom port (point at a different running llamafile server)
+./lumina --agentic -q 'Read config.txt and summarize it' --port 8080
+./lumina --agentic -q 'Read config.txt and summarize it' -p 8080
+
+# 3. More iterations for complex multi-step tasks (default is 5)
+./lumina --agentic -q 'Delete old_file.txt, create new_report.txt, read it back' --iterations 10
+./lumina --agentic -q 'Delete old_file.txt, create new_report.txt, read it back' -i 10
+
+# 4. Lower temperature for deterministic tool selection (default 0.2)
+./lumina --agentic -q 'Run the pip install tool for requests' --temperature 0.1
+./lumina --agentic -q 'Run the pip install tool for requests' -t 0.1
+
+# 5. Verbose mode — prints every LLM response, tool call, and result
+./lumina --agentic -q 'Save current date to date.txt' --verbose
+./lumina --agentic -q 'Save current date to date.txt' -v
+
+# 6. Full control — all knobs together
+./lumina --agentic \
+  -q 'Delete old_cache.txt, install requests, save version info to version.txt' \
+  -p 54993 -i 15 -t 0.1 --max-tokens 512 --verbose
+
+# 7. Adjust log verbosity independently of verbose output
+./lumina --agentic -q 'Summarize data.txt' --log-level DEBUG
 ```
 
 ### 5. Dependency & Package Management
@@ -324,7 +350,41 @@ Run the autonomous guardian in the background while interacting with your models
 
 ---
 
-### 4. 🚀 OpenAI-Compatible Local Server (`--launch`)
+### 4. 🤖 Agentic Autonomous Agent (`--agentic`)
+
+The Agentic mode turns Lumina into a **self-directing task executor**. Instead of answering a question, the agent is given a goal and autonomously decides which tools to call, in what order, and how many times — until the task is complete or max iterations are reached.
+
+```bash
+./lumina --agentic -q 'Save PyTorch release notes to pytorch_info.txt'
+```
+
+**How the agent loop works**:
+1. **Tool need classifier**: The 0.5B semantic router checks whether the query needs tools at all. Pure factual questions skip the agent loop entirely.
+2. **Tool discovery**: The agent reads the first 6 lines (function signature + docstring) of every `.py` file in the `Tools/` directory to build its available-tool manifest.
+3. **LLM decision loop**: The main LLM receives the query + tool manifest and outputs a single tool call per line in the format `toolname(arg1,arg2)`.
+4. **Bundled execution**: Each tool is executed as a subprocess using the **bundled CPython runtime** auto-detected for your OS — no system Python is ever used.
+5. **Feedback loop**: Tool results are fed back into the next LLM prompt under `Previously executed:`. The agent keeps iterating until it outputs `DONE` or hits `--iterations`.
+
+```text
+[Lumina Agentic] 🤖 [AGENTIC] Starting with query: Save PyTorch info to file
+[Lumina Agentic] 🔄 [LOOP] Iteration 1
+[Lumina Agentic] 💬 [LLM] Decision: pip_install(torch)
+[Lumina Agentic] 🐍 [EXEC] Python: python-dependencies/macos-intel/bin/python3
+[Lumina Agentic] ⚙️  [EXEC] Running: python3 Tools/pip_install.py torch
+[Lumina Agentic] ✔ [RESULT] Successfully installed torch
+[Lumina Agentic] 🔄 [LOOP] Iteration 2
+[Lumina Agentic] 💬 [LLM] Decision: save_file(pytorch_info.txt,PyTorch installed successfully)
+[Lumina Agentic] ✔ [RESULT] File saved to pytorch_info.txt
+[Lumina Agentic] 📋 Status: success
+[Lumina Agentic] 🔢 Iterations used: 2
+```
+
+**Adding custom tools**: Drop any `.py` file into the `Tools/` directory. The first 6 lines must be a function signature + docstring describing the tool's name and arguments — the agent auto-discovers it on next run.
+
+---
+
+### 5. 🚀 OpenAI-Compatible Local Server (`--launch`)
+
 Plug Lumina into any standard AI tool, IDE extension (Cursor, Continue, VS Code), or Python script:
 
 ```bash
@@ -360,9 +420,15 @@ Lumina/
 │   ├── classifier.py          # 0.5B Semantic router & context vectorizer
 │   ├── Smartswitch.py         # Smart Switch watchdog & same-port fallback monitor
 │   ├── rag.py                 # Dual-source Document + Context RAG pipeline
-│   ├── agentic_rag.py         # Multi-step Agentic reasoning loop
+│   ├── agentic_rag.py         # Autonomous multi-step agent loop
 │   ├── launch_model.py        # Background llamafile server launcher
 │   └── download_base_models.py# Base weights downloader
+├── 🛠️ Tools/                  # Drop-in Python tools auto-discovered by the agent
+│   ├── save_file.py           # Writes content to a file
+│   ├── read_file.py           # Reads a file and returns its content
+│   ├── delete_file.py         # Deletes a file
+│   ├── run_python.py          # Executes arbitrary Python code
+│   └── pip_install.py         # Installs a package into the bundled CPython env
 ├── ☕ src/java/lumina/         # High-throughput Java backend
 │   ├── LuminaWebServer.java   # Local Web Dashboard server & REST API
 │   ├── SystemAssess.java      # Physical memory bandwidth & speed predictor

@@ -184,6 +184,37 @@ def format_subprocess_line(line, tag="Engine"):
     elif "SOURCES USED:" in line_clean:
         return f"{CLR_BRAND}[Lumina RAG]{CLR_RESET} {CLR_PURPLE}{line_clean}{CLR_RESET}"
 
+    # ── Agentic pipeline output ────────────────────────────────────────────────
+    elif "[AGENTIC]" in line_clean:
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_INFO}🤖 {line_clean}{CLR_RESET}"
+    elif "[LOOP]" in line_clean:
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_INFO}🔄 {line_clean}{CLR_RESET}"
+    elif "[LLM]" in line_clean and "Decision:" in line_clean:
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_PURPLE}💬 {line_clean}{CLR_RESET}"
+    elif "[LLM]" in line_clean:
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_DIM}{line_clean}{CLR_RESET}"
+    elif "[EXEC]" in line_clean and "Python:" in line_clean:
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_DIM}🐍 {line_clean}{CLR_RESET}"
+    elif "[EXEC]" in line_clean and "Running:" in line_clean:
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_INFO}⚙️  {line_clean}{CLR_RESET}"
+    elif "[EXEC]" in line_clean:
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_DIM}{line_clean}{CLR_RESET}"
+    elif "[RESULT]" in line_clean:
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_SUCCESS}✔ {line_clean}{CLR_RESET}"
+    elif "[SKIP]" in line_clean:
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_DIM}↷ {line_clean}{CLR_RESET}"
+    elif "[ERROR]" in line_clean and "Agentic" in line_clean:
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_ERROR}✖ {line_clean}{CLR_RESET}"
+    elif line_clean.startswith("RESULTS:") or line_clean.startswith("="):
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_SUCCESS}{CLR_BOLD}{line_clean}{CLR_RESET}"
+    elif line_clean.startswith("Status:"):
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_SUCCESS}📋 {line_clean}{CLR_RESET}"
+    elif line_clean.startswith("Iterations used:"):
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_INFO}🔢 {line_clean}{CLR_RESET}"
+    elif line_clean.startswith("Result:"):
+        return f"{CLR_BRAND}[Lumina Agentic]{CLR_RESET} {CLR_SUCCESS}{line_clean}{CLR_RESET}"
+    # ──────────────────────────────────────────────────────────────────────────
+
     # Preserved Lumina formatting
     elif line_clean.startswith("[Lumina]"):
         content = line_clean[8:].strip()
@@ -448,12 +479,12 @@ COMMANDS = {
     "--rag": {
         "type": "python",
         "target": os.path.join(PROJECT_ROOT, "scripts", "rag.py"),
-        "description": "Runs the local RAG vector store pipeline (supports --context)",
+        "description": "RAG vector store pipeline  [--file PATH, --port N, --chunk-size, --overlap, --k, --search-type, --db-dir, --force-rebuild]",
     },
     "--context": {
         "type": "python",
         "target": os.path.join(PROJECT_ROOT, "scripts", "rag.py"),
-        "description": "Runs RAG with context persistence [usage: --context or --context --embed]",
+        "description": "RAG with context persistence  [--file PATH, --port N, --context, --embed, ...]",
     },
     "--embed": {
         "type": "python",
@@ -463,17 +494,17 @@ COMMANDS = {
     "--agentic": {
         "type": "python",
         "target": os.path.join(PROJECT_ROOT, "scripts", "agentic_rag.py"),
-        "description": "Runs the Agentic RAG reasoning pipeline",
+        "description": "Autonomous multi-step agent: chains tools to complete tasks  [--query TEXT, --port N, --iterations N, --temperature N, --verbose]",
     },
     "--launch": {
         "type": "python",
         "target": os.path.join(PROJECT_ROOT, "scripts", "launch_model.py"),
-        "description": "Launches a specific GGUF model via llamafile server",
+        "description": "Launch a GGUF model via llamafile server  [--model, --port, --host, --startup-timeout, --max-attempts]",
     },
     "--switch": {
         "type": "python",
         "target": os.path.join(PROJECT_ROOT, "scripts", "Smartswitch.py"),
-        "description": "Runs Smart Switch watchdog for auto same-port model fallback",
+        "description": "Smart Switch watchdog: auto fallback + GPU VRAM tracking  [--base-model, --ram-allowance, --interval, --tps-threshold, --vram-delta-mb, --no-vram, --gpu-index, --log-level, ...]",
     },
     "--install": {
         "type": "builtin",
