@@ -1,403 +1,117 @@
-<div align="center">
-
-```text
- ▒▒███                                   ▒▒▒                       
-  ▒███        █████ ████ █████████████   ████  ████████    ██████  
-  ▒███       ▒▒███ ▒███ ▒▒███▒▒███▒▒███ ▒▒███ ▒▒███▒▒███  ▒▒▒▒▒███ 
-  ▒███        ▒███ ▒███  ▒███ ▒███ ▒███  ▒███  ▒███ ▒███   ███████ 
-  ▒███      █ ▒███ ▒███  ▒███ ▒███ ▒███  ▒███  ▒███ ▒███  ███▒▒███ 
-  ███████████ ▒▒████████ █████▒███ █████ █████ ████ █████▒▒████████
- ▒▒▒▒▒▒▒▒▒▒▒   ▒▒▒▒▒▒▒▒ ▒▒▒▒▒ ▒▒▒ ▒▒▒▒▒ ▒▒▒▒▒ ▒▒▒▒ ▒▒▒▒▒  ▒▒▒▒▒▒▒▒ 
-```
-
-# ⚡ Lumina AI Engine
-
-**The Self-Healing, Zero-Config, Private Local AI Operating System**  
-*Enterprise-Grade Inference • Autonomous Hot-Swapping • Hardware Bandwidth Sensing • Dual-Tier Intelligent Memory*
-
-[![Platform](https://img.shields.io/badge/Platform-macOS%20|%20Windows%20|%20Linux-00d2ff?style=for-the-badge&logo=apple&logoColor=white)](https://github.com)
-[![Runtime](https://img.shields.io/badge/Runtime-Zero--Config%20Bundled-a020f0?style=for-the-badge&logo=coffeescript&logoColor=white)](https://github.com)
-[![Inference](https://img.shields.io/badge/Inference-GGUF%20%2F%20llamafile-2ecc71?style=for-the-badge&logo=gnubash&logoColor=white)](https://github.com)
-[![Vector DB](https://img.shields.io/badge/Vector%20Store-ChromaDB-f1c40f?style=for-the-badge&logo=databricks&logoColor=white)](https://github.com)
-[![OpenAI Compatible](https://img.shields.io/badge/API-OpenAI%20v1%20Compatible-3498db?style=for-the-badge&logo=openai&logoColor=white)](https://github.com)
-[![License](https://img.shields.io/badge/License-Apache%202.0-e74c3c?style=for-the-badge)](LICENSE)
+<h1 align="center" style="border-bottom: none">
+  <div>
+    ⚡ Lumina
+    <br>
+    <sub>The Self-Healing, Zero-Config, Private Local AI Operating System</sub>
+  </div>
+</h1>
 
 <p align="center">
-  <a href="#-the-problem-why-is-running-local-ai-so-hard">🛑 The Pain Points</a> •
-  <a href="#-how-lumina-solves-it">💡 How Lumina Solves It</a> •
-  <a href="#-quick-start">🚀 Quick Start</a> •
-  <a href="#-command-matrix">📖 Command Matrix</a> •
-  <a href="#-system-architecture">📐 System Architecture</a> •
-  <a href="#-feature-walkthroughs">💻 Deep Dives</a>
+<b>Lumina is an open-source, fully offline toolchain for running, benchmarking, and building on local LLMs.</b>
+It bundles its own Java runtime, Python runtime, and inference engine, so it runs on macOS, Windows, and Linux without any dependency setup — no cloud calls, no accounts, no data ever leaving your machine.
+</p>
+
+<div align="center">
+
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-00d2ff?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Uwais-ML/Lumina)
+[![Runtime](https://img.shields.io/badge/Runtime-Zero--Config%20Bundled-a020f0?style=for-the-badge&logo=coffeescript&logoColor=white)](https://github.com/Uwais-ML/Lumina)
+[![Inference](https://img.shields.io/badge/Inference-GGUF%20%2F%20llamafile-2ecc71?style=for-the-badge&logo=gnubash&logoColor=white)](https://github.com/Uwais-ML/Lumina)
+[![OpenAI Compatible](https://img.shields.io/badge/API-OpenAI%20v1%20Compatible-3498db?style=for-the-badge&logo=openai&logoColor=white)](https://github.com/Uwais-ML/Lumina)
+[![License](https://img.shields.io/badge/License-Apache%202.0-e74c3c?style=for-the-badge)](https://github.com/Uwais-ML/Lumina/blob/main/LICENSE)
+
+</div>
+
+<p align="center">
+  <a href="#-what-is-lumina"><b>🚀 What is Lumina?</b></a> •
+  <a href="#-quick-start"><b>⚡ Quick Start</b></a> •
+  <a href="#-how-lumina-compares"><b>📊 How Lumina Compares</b></a> •
+  <a href="#-frequently-asked-questions"><b>❓ FAQ</b></a> •
+  <a href="#-command--flag-matrix"><b>📖 Command Matrix</b></a> •
+  <a href="#-feature-walkthroughs"><b>💻 Feature Walkthroughs</b></a> •
+  <a href="#-fully-swappable"><b>🔄 Swappable Components</b></a> •
+  <a href="#-system-architecture"><b>📐 Architecture</b></a> •
+  <a href="#-contributing"><b>🤝 Contributing</b></a>
+</p>
+
+<br>
+
+<p align="center">
+  <img src="assest/Lumina.png" alt="Lumina CLI booting the local engine" width="800"/>
 </p>
 
 ---
 
-</div>
+<a id="-what-is-lumina"></a>
+## 🚀 What is Lumina?
 
-## 🛑 The Problem: Why is Running Local AI So Hard?
+Running local AI today usually means dependency hell, silent OOM crashes, models that forget everything between sessions, and no way to know if your hardware can even run the model you just downloaded. **Lumina** was built to remove every one of those blockers in a single, self-contained toolchain.
 
-If you have ever tried running an AI model on your own computer, you have probably experienced how frustrating it can be:
+Its core capabilities:
 
-### 1. 🤯 "Dependency Hell" (The Installation Nightmare)
-> **The Pain Point**: You download an AI tool, and suddenly you get cryptic red errors: *"Python 3.12 is incompatible with PyTorch"*, *"CUDA drivers not found"*, *"Conflicting NumPy version"*, or *"JAVA_HOME is not set"*. You spend 3 hours fixing broken libraries instead of using AI.
+- **🔌 Zero-config portability** — bundles its own JRE, CPython runtime, and `llamafile` binaries. Clone it, run `./lumina`, and it detects your OS and loads the right engine. No `pip install`, no Java setup, no global changes.
+- **🔄 SmartSwitch self-healing watchdog** — monitors running models for RAM inflation and speed degradation in real time, and hot-swaps a failing model for a lightweight fallback **on the same port**, so your app never loses connection.
+- **🧠 Dual-tier intelligent memory** — a fast 0.5B router classifies every query as a standalone question or a reference to past discussion, and pulls from the right vector store (document RAG vs. conversation memory) instead of stuffing everything into the prompt.
+- **📊 Physical hardware sensing** — benchmarks your machine's real memory bandwidth and predicts tokens/sec for any model *before* you download or run it.
+- **🤖 Agentic tool execution** — an autonomous multi-step agent that chains together drop-in Python tools (file I/O, web scraping, package installs, arbitrary code) to complete a task end to end.
+- **🚀 OpenAI-compatible local server** — launch any GGUF model behind a `v1/chat/completions` endpoint and plug it into Cursor, Continue, or any OpenAI SDK client.
+- **🌐 Web dashboard & IDE** — a local model store, hardware benchmark visualizer, and a built-in code editor with autocomplete, all served from `localhost:8080`.
+- **🔄 Fully swappable internals** — every component (models, inference engine, vector DB, embeddings, runtimes, UI, backend routes) is a drop-in replacement, not a hard-coded dependency. See [Swappable Components](#-fully-swappable) below.
 
-### 2. 💥 The Silent Crash & "Out of Memory" (OOM) Freeze
-> **The Pain Point**: You are in the middle of asking a complex question or analyzing a document. The AI runs out of RAM or GPU memory. Your computer freezes, the process crashes, the port disconnects, and whatever you were working on is completely lost.
+> **Why this matters:** Lumina isn't a wrapper around a hosted API — the entire stack (runtime, inference server, memory layer, watchdog, and web UI) runs on your machine, licensed under Apache-2.0, with nothing to configure and nothing to send off-device.
 
-### 3. 🧠 The "Amnesia" vs "Prompt Bloat" Dilemma
-> **The Pain Point**: Most AI tools either **forget everything** the moment you start a new question, or they **blindly paste all your past conversations** into every single prompt. Pasting everything clogs the AI's brain, slows down generation to a crawl, and causes hallucinations.
+<p align="center">
+  <img src="assest/Model_Store.png" alt="Lumina LLM Hub — model store and hardware bandwidth benchmarks" width="800"/>
+</p>
 
-### 4. 🔮 The Hardware Guesswork Trap
-> **The Pain Point**: You download a 15GB model, wait an hour, launch it, and get **0.5 tokens per second** (one word every 5 seconds). You had no way of knowing beforehand whether your physical machine had the memory bus bandwidth to run it comfortably.
+<br>
 
-### 5. ☁️ Privacy Leaks & Cloud Dependency
-> **The Pain Point**: Sending confidential business reports, private code, or personal documents to cloud APIs means your sensitive data leaves your machine and sits on someone else's servers.
+<a id="-quick-start"></a>
+## ⚡ Quick Start
 
----
+Clone the repository and enter the directory:
 
-## 💡 How Lumina Solves It
-
-**Lumina** was built from the ground up to eliminate every single one of these pain points. It is not just an AI runner—it is a **resilient, self-healing, completely private AI toolchain** designed for anyone from beginners to enterprise teams.
-
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   LUMINA AT A GLANCE                                   │
-├─────────────────────────┬───────────────────────────────┬──────────────────────────────┤
-│ 🛑 Old Way (Traditional)│ ⚡ Lumina Solution             │ 🎯 The Result                │
-├─────────────────────────┼───────────────────────────────┼──────────────────────────────┤
-│ Broken pip/Java setup   │ 🔌 Bundled JRE + CPython      │ Works instantly out-of-the-box│
-│ Sudden crashes on high RAM│ 🔄 SmartSwitch Circuit Breaker│ Auto hot-swaps on same port  │
-│ Forgetful or slow RAG   │ 🧠 0.5B Semantic Memory Gating│ Fast, dual-tier memory search│
-│ Guessing model speeds   │ 📊 Physical Hardware Sensing  │ Accurate Speed & RAM forecast│
-│ Cloud data leaks        │ 🛡️ 100% Offline & Air-Gapped  │ Total privacy & zero tracking│
-└─────────────────────────┴───────────────────────────────┴──────────────────────────────┘
-```
-
----
-
-## ✨ Core Pillars of Lumina
-
-### 1. 🔌 True Zero-Config Portability (Double-Click & Run)
-Lumina bundles its own isolated **Java Runtime Environment (JRE)**, bundled **CPython runtimes**, and universal **`llamafile`** binaries directly inside the directory.
-* **No `pip install` needed**.
-* **No Java installation needed**.
-* **No global system modifications**.
-* Whether you are on **macOS (Intel/Apple Silicon)**, **Windows**, or **Linux**, Lumina detects your operating system and loads the exact right engine automatically.
-
----
-
-### 2. 🔄 SmartSwitch: The Autonomous Self-Healing Circuit Breaker
-In enterprise environments, downtime is unacceptable. Lumina features **SmartSwitch** (`scripts/Smartswitch.py`), an active watchdog that monitors running AI models in real time:
-* **Tracks RAM Inflation**: If a model begins leaking memory past the safety threshold, SmartSwitch intervenes.
-* **Tracks Speed Drops**: If generation speed drops by more than **25%** below baseline, SmartSwitch intervenes.
-* **Same-Port Hot Swap**: SmartSwitch terminates the degraded model, recycles the TCP socket, and launches an ultra-fast fallback model (`Qwen2.5-0.5B-Instruct`) on the **exact same port**. Your apps, web browsers, and scripts never lose their connection!
-* **Automated Context Preservation**: Before the swap finishes, SmartSwitch automatically saves and vectorizes your conversation history into Chroma DB so no thoughts are lost.
-
----
-
-### 3. 🧠 Dual-Tier Intelligent Memory & Dynamic 0.5B Routing
-Lumina solves the "Amnesia vs Prompt Bloat" problem using an intelligent two-tier memory system:
-* **The 0.5B Router**: When you ask a question, Lumina's fast 0.5B model checks your intent in milliseconds:
-  * 📄 *Asking a standalone question?* (e.g. *"What is photosynthesis?"*) $\rightarrow$ Retrieves only relevant document chunks. Keeps inference lightning-fast.
-  * 🧠 *Asking about past discussion?* (e.g. *"What did we agree on earlier?"*) $\rightarrow$ Retrieves relevant conversation memory vectors from `data/context_chroma_db`.
-* **Explicit Control (`--context`)**: Save context when you want to; embed it into vector storage whenever you choose with `lumina --embed`.
-
----
-
-### 4. 📊 Physical Hardware Sensing (`SystemAssess`)
-Lumina doesn't guess your computer's speed—it calculates it using physical memory bus benchmarks:
-
-$$\text{Memory Bandwidth (GB/s)} = \frac{\text{Model Size (GB)} \times \text{Tokens/sec}}{\text{Pass Count}}$$
-
-$$\text{Estimated Model Footprint (GB)} = \text{Parameters (B)} \times \left(\frac{\text{Quantization Bits}}{8}\right)$$
-
-Before you even download or run a model, Lumina can tell you your computer's **true memory bandwidth** and predict the exact **tokens per second** you will achieve.
-
----
-
-## 📐 System Architecture
-
-```mermaid
-flowchart TB
-    subgraph UI ["🖥️ Access Layer"]
-        CLI["Terminal CLI (`./lumina`)"]
-        WEB["Browser Web UI (`http://localhost:8080`)"]
-    end
-
-    subgraph Core ["⚡ Lumina Core Dispatcher (Lumina.py)"]
-        OS_DETECT["Dynamic OS Detection (macOS / Win / Linux)"]
-        FILTER["Noise Filter & Log Engine (`logs/lumina.log`)"]
-    end
-
-    subgraph MemoryLayer ["🧠 Intelligent Memory & Routing Layer"]
-        CLASSIFIER["0.5B Semantic Router (`classifier.py`)"]
-        CONTEXT_DB[("🗄️ Context Vector Store\n(`data/context_chroma_db`)")]
-        DOC_DB[("📚 Document Vector Store\n(`chroma_db/`)")]
-    end
-
-    subgraph Watchdog ["🛡️ Reliability & Watchdog"]
-        SMART_SW["🔄 Smart Switch Watchdog (`Smartswitch.py`)"]
-        TELEMETRY["📊 Process Telemetry (`data/status.txt`)"]
-    end
-
-    subgraph Inference ["🚀 High-Speed Engine"]
-        LLAMAFILE["llamafile OpenAI-Compatible Server (`127.0.0.1:<port>`)"]
-        GGUF_MODELS[("📦 Local GGUF Weights (`models/`)")]
-    end
-
-    CLI --> OS_DETECT
-    WEB --> OS_DETECT
-    OS_DETECT --> FILTER
-    
-    FILTER --> CLASSIFIER
-    CLASSIFIER -->|Needs History? YES| CONTEXT_DB
-    CLASSIFIER -->|Needs Documents? YES| DOC_DB
-    
-    CONTEXT_DB --> LLAMAFILE
-    DOC_DB --> LLAMAFILE
-    LLAMAFILE --> GGUF_MODELS
-    
-    SMART_SW -->|Monitors RAM & T/s| TELEMETRY
-    SMART_SW -->|Hot-Swaps Degraded Model| LLAMAFILE
-```
-
----
-
-## 🚀 Quick Start
-
-### 1. Clone & Enter Directory
 ```bash
-git clone https://github.com/choudharyowais473/Lumina.git
+git clone https://github.com/Uwais-ML/Lumina.git
 cd Lumina
 ```
 
-### 2. Launch Lumina CLI
+Launch the CLI — macOS / Linux:
 
-#### 🍎 macOS / 🐧 Linux
 ```bash
 chmod +x lumina
 ./lumina
 ```
 
-#### 🪟 Windows (Command Prompt / PowerShell)
-```cmd
+Launch the CLI — Windows:
+
+```powershell
 .\lumina.bat
 ```
 
-### 3. Setup Default Models
-Download pre-configured base GGUF weights:
+Download the pre-configured base GGUF models:
+
 ```bash
 ./lumina --setup
 ```
 
----
+<p align="center">
+  <img src="assest/Lumina_setup.png" alt="./lumina --setup downloading base GGUF models" width="800"/>
+</p>
 
-## 📖 Complete Command & Combination Matrix
-
-Lumina provides a unified CLI with versatile arguments and flag combinations:
-
-| Primary Command | Sub-Flags / Arguments | Category | Description | Exact Example |
-| :--- | :--- | :--- | :--- | :--- |
-| **`--models`** | _None_ | 🌐 Web UI | Spawns local Web Dashboard & Model Store at `localhost:8080` | `./lumina --models` |
-| **`--rag`** | _[file_path]_ | 🤖 Knowledge | Runs document RAG on default or specific document | `./lumina --rag data/sample.txt` |
-| **`--rag`** | **`--context`** _[file]_ | 🧠 Memory | Runs Document RAG + **live conversation tracking** | `./lumina --rag --context data/sample.txt` |
-| **`--context`** | _[file_path]_ | 🧠 Memory | Shortcut to launch RAG with active conversation tracking | `./lumina --context data/sample.txt` |
-| **`--context`** | **`--embed`** / **`--embedd`** | 🗄️ Memory | Vectorizes accumulated `model_context/context` into Chroma DB | `./lumina --context --embed` |
-| **`--embed`** | _None_ | 🗄️ Memory | Standalone command to embed conversation context into vector DB | `./lumina --embed` |
-| **`--switch`** | _None_ | 🔄 Watchdog | Runs Smart Switch watchdog with default fallback & 25% RAM limit | `./lumina --switch` |
-| **`--switch`** | _[FallbackModel]_ _[RAM_limit]_ | 🔄 Watchdog | Runs Smart Switch with custom fallback model & custom RAM allowance | `./lumina --switch Qwen2.5-0.5B-Instruct-Q4_K_M 0.25` |
-| **`--launch`** | _[ModelName]_ | 🚀 Server | Spawns local OpenAI-compatible server for designated model | `./lumina --launch Llama-3.2-1B-Instruct-Q4_K_M` |
-| **`--launch`** | _[ModelName]_ _[Port]_ | 🚀 Server | Spawns local OpenAI-compatible server on specific port | `./lumina --launch Qwen2.5-0.5B-Instruct-Q4_K_M 8080` |
-| **`--agentic`** | **`--query`** _"task"_ | 🤖 Agent | Runs autonomous multi-step agent that chains tools to complete a task | `./lumina --agentic --query 'Save PyTorch info to a file'` |
-| **`--agentic`** | **`--query`** _"task"_ **`--iterations`** _N_ **`--verbose`** | 🤖 Agent | Agent with custom max iterations and full debug output | `./lumina --agentic -q 'Delete old file and create new one' -i 10 --verbose` |
-| **`--assess`** | _None_ | 📊 Hardware | Measures physical memory bus bandwidth & predicts tok/s | `./lumina --assess` |
-| **`--bench`** | _None_ | ⚡ Benchmark | Executes local hardware benchmark across GGUF models | `./lumina --bench` |
-| **`--download`**| _[ModelID]_ | 📥 Downloader | Interactive or direct HuggingFace GGUF model downloader | `./lumina --download` |
-| **`--setup`** | _None_ | 📥 Downloader | Automatically downloads pre-configured base GGUF weights | `./lumina --setup` |
-| **`--install`** | _<pkg1> [pkg2 ...]_ | 📦 Package | Installs specific packages into the bundled Python environment | `./lumina --install scikit-learn pandas` |
-| **`--dependencies`**| _None_ | 📦 Setup | Verifies & installs all core Python dependencies in bundled env | `./lumina --dependencies` |
-
----
-
-## 🎛️ Flag Combinations & Usage Cheatsheet
-
-### 1. RAG & Memory Combinations
-```bash
-# 1. Standard Document RAG (uses default data/sample.txt)
-./lumina --rag
-
-# 2. Document RAG on a custom document
-./lumina --rag data/financial_report.txt
-
-# 3. Document RAG WITH live context recording enabled
-./lumina --rag --context data/financial_report.txt
-
-# 4. Shortcut for context-enabled RAG
-./lumina --context data/financial_report.txt
-
-# 5. Manual context vectorization (embeds model_context/context to Chroma DB)
-./lumina --context --embed
-# OR
-./lumina --embed
-```
-
-### 2. SmartSwitch Watchdog Combinations
-```bash
-# 1. Launch default watchdog (fallback: Qwen2.5-0.5B, RAM allowance: 25%)
-./lumina --switch
-
-# 2. Custom fallback model with custom RAM threshold (e.g. 30% allowance)
-./lumina --switch Qwen2.5-0.5B-Instruct-Q4_K_M 0.30
-```
-
-### 3. Model Server & OpenAI Endpoint Combinations
-```bash
-# 1. Launch default model on dynamic available port
-./lumina --launch Qwen2.5-0.5B-Instruct-Q4_K_M
-
-# 2. Launch model explicitly binding to port 8080
-./lumina --launch Llama-3.2-1B-Instruct-Q4_K_M 8080
-```
-
-### 4. 🤖 Agentic Autonomous Agent
-
-```bash
-# 1. Run agent with a simple task (defaults: port 54993, 5 iterations, temp 0.2)
-./lumina --agentic --query 'Save PyTorch release notes to pytorch_info.txt'
-
-# Short flag alias
-./lumina --agentic -q 'Search and summarize machine learning basics'
-
-# 2. Custom port (point at a different running llamafile server)
-./lumina --agentic -q 'Read config.txt and summarize it' --port 8080
-./lumina --agentic -q 'Read config.txt and summarize it' -p 8080
-
-# 3. More iterations for complex multi-step tasks (default is 5)
-./lumina --agentic -q 'Delete old_file.txt, create new_report.txt, read it back' --iterations 10
-./lumina --agentic -q 'Delete old_file.txt, create new_report.txt, read it back' -i 10
-
-# 4. Lower temperature for deterministic tool selection (default 0.2)
-./lumina --agentic -q 'Run the pip install tool for requests' --temperature 0.1
-./lumina --agentic -q 'Run the pip install tool for requests' -t 0.1
-
-# 5. Verbose mode — prints every LLM response, tool call, and result
-./lumina --agentic -q 'Save current date to date.txt' --verbose
-./lumina --agentic -q 'Save current date to date.txt' -v
-
-# 6. Full control — all knobs together
-./lumina --agentic \
-  -q 'Delete old_cache.txt, install requests, save version info to version.txt' \
-  -p 54993 -i 15 -t 0.1 --max-tokens 512 --verbose
-
-# 7. Adjust log verbosity independently of verbose output
-./lumina --agentic -q 'Summarize data.txt' --log-level DEBUG
-```
-
-### 5. Dependency & Package Management
-```bash
-# 1. Verify and install all foundational dependencies
-./lumina --dependencies
-
-# 2. Install one or more custom packages into bundled CPython
-./lumina --install matplotlib seaborn
-```
-
----
-
-## 💻 Feature Walkthroughs
-
-### 1. 🌐 The Web Dashboard (`--models`)
-Launch a local browser-based UI to browse models, inspect memory requirements, and test prompts in an interactive IDE:
-```bash
-./lumina --models
-```
-* **Dashboard URL**: `http://localhost:8080`
-* **Features**: Live model catalog, one-click downloads, RAM sizing visualizer, and live prompt testing.
-
----
-
-### 2. 🧠 Intelligent Dual-Tier RAG (`--context` & `--embed`)
-Query your private documents while retaining long-term project memory:
-
-```bash
-# Start an interactive conversation with memory recording enabled
-./lumina --context
-```
-
-**How It Works Behind the Scenes**:
-1. You ask: *"Where was Albert Einstein born?"*
-   * 🤖 **Router**: Standalone question $\rightarrow$ Searches only document text.
-   * 💬 **Answer**: *"Albert Einstein was born in Ulm, Germany on March 14, 1879."*
-2. Later, you ask: *"What did we discuss earlier about solar inverters?"*
-   * 🤖 **Router**: Detected reference to past discussion $\rightarrow$ Retrieves vectorized chunks from `data/context_chroma_db`.
-   * 💬 **Answer**: *"We discussed designing an autonomous solar inverter with 98% efficiency using SiC MOSFETs."*
-
----
-
-### 3. 🔄 SmartSwitch Auto-Failover (`--switch`)
-Run the autonomous guardian in the background while interacting with your models:
-```bash
-./lumina --switch Qwen2.5-0.5B-Instruct-Q4_K_M 0.25
-```
-```text
-[Lumina Smartswitch] 🚀 Smart Switch started. Fallback Model: 'Qwen2.5-0.5B-Instruct-Q4_K_M' | RAM allowance: 25.0%
-[Lumina Smartswitch] ⚠️ Speed degradation detected for 'Llama-3.2-1B': baseline=24.50 T/s -> current=15.20 T/s (< 75%)
-[Lumina Smartswitch] 🧠 Smart Switch: Embedding session context into Chroma DB for seamless continuity...
-[Lumina Smartswitch] 🚨 Triggering Smart Switch! Replacing with fallback on same port 51308...
-[Lumina Smartswitch] ✔ Successfully switched to 'Qwen2.5-0.5B-Instruct-Q4_K_M' on port 51308!
-```
-
----
-
-### 4. 🤖 Agentic Autonomous Agent (`--agentic`)
-
-The Agentic mode turns Lumina into a **self-directing task executor**. Instead of answering a question, the agent is given a goal and autonomously decides which tools to call, in what order, and how many times — until the task is complete or max iterations are reached.
-
-```bash
-./lumina --agentic -q 'Save PyTorch release notes to pytorch_info.txt'
-```
-
-**How the agent loop works**:
-1. **Tool need classifier**: The 0.5B semantic router checks whether the query needs tools at all. Pure factual questions skip the agent loop entirely.
-2. **Tool discovery**: The agent reads the first 6 lines (function signature + docstring) of every `.py` file in the `Tools/` directory to build its available-tool manifest.
-3. **LLM decision loop**: The main LLM receives the query + tool manifest and outputs a single tool call per line in the format `toolname(arg1,arg2)`.
-4. **Bundled execution**: Each tool is executed as a subprocess using the **bundled CPython runtime** auto-detected for your OS — no system Python is ever used.
-5. **Feedback loop**: Tool results are fed back into the next LLM prompt under `Previously executed:`. The agent keeps iterating until it outputs `DONE` or hits `--iterations`.
-
-```text
-[Lumina Agentic] 🤖 [AGENTIC] Starting with query: Save PyTorch info to file
-[Lumina Agentic] 🔄 [LOOP] Iteration 1
-[Lumina Agentic] 💬 [LLM] Decision: pip_install(torch)
-[Lumina Agentic] 🐍 [EXEC] Python: python-dependencies/macos-intel/bin/python3
-[Lumina Agentic] ⚙️  [EXEC] Running: python3 Tools/pip_install.py torch
-[Lumina Agentic] ✔ [RESULT] Successfully installed torch
-[Lumina Agentic] 🔄 [LOOP] Iteration 2
-[Lumina Agentic] 💬 [LLM] Decision: save_file(pytorch_info.txt,PyTorch installed successfully)
-[Lumina Agentic] ✔ [RESULT] File saved to pytorch_info.txt
-[Lumina Agentic] 📋 Status: success
-[Lumina Agentic] 🔢 Iterations used: 2
-```
-
-**Adding custom tools**: Drop any `.py` file into the `Tools/` directory. The first 6 lines must be a function signature + docstring describing the tool's name and arguments — the agent auto-discovers it on next run.
-
----
-
-### 5. 🚀 OpenAI-Compatible Local Server (`--launch`)
-
-Plug Lumina into any standard AI tool, IDE extension (Cursor, Continue, VS Code), or Python script:
+Talk to a model right away:
 
 ```bash
 ./lumina --launch Qwen2.5-0.5B-Instruct-Q4_K_M
 ```
+
+<p align="center">
+  <img src="assest/Lumina_launch.png" alt="./lumina --launch spawning a local OpenAI-compatible server" width="800"/>
+</p>
 
 ```python
 from openai import OpenAI
 
-client = OpenAI(
-    base_url="http://127.0.0.1:8080/v1",
-    api_key="lumina-local"
-)
+client = OpenAI(base_url="http://127.0.0.1:8080/v1", api_key="lumina-local")
 
 response = client.chat.completions.create(
     model="Qwen2.5-0.5B-Instruct-Q4_K_M",
@@ -406,72 +120,199 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
----
+<br>
 
-## 📁 Project Directory Structure
+<a id="-how-lumina-compares"></a>
+## 📊 How Lumina Compares
 
-```text
-Lumina/
-├── 📜 Lumina.py               # Unified cross-platform CLI dispatcher & noise filter
-├── 🐚 lumina                  # Fast CLI launcher for macOS / Linux
-├── 🪟 lumina.bat              # Fast CLI launcher for Windows
-├── 📦 models/                 # Local GGUF model storage directory
-├── 🐍 scripts/                # High-efficiency Python modules
-│   ├── classifier.py          # 0.5B Semantic router & context vectorizer
-│   ├── Smartswitch.py         # Smart Switch watchdog & same-port fallback monitor
-│   ├── rag.py                 # Dual-source Document + Context RAG pipeline
-│   ├── agentic_rag.py         # Autonomous multi-step agent loop
-│   ├── launch_model.py        # Background llamafile server launcher
-│   └── download_base_models.py# Base weights downloader
-├── 🛠️ Tools/                  # Drop-in Python tools auto-discovered by the agent
-│   ├── save_file.py           # Writes content to a file
-│   ├── read_file.py           # Reads a file and returns its content
-│   ├── delete_file.py         # Deletes a file
-│   ├── run_python.py          # Executes arbitrary Python code
-│   └── pip_install.py         # Installs a package into the bundled CPython env
-├── ☕ src/java/lumina/         # High-throughput Java backend
-│   ├── LuminaWebServer.java   # Local Web Dashboard server & REST API
-│   ├── SystemAssess.java      # Physical memory bandwidth & speed predictor
-│   └── Runit.java             # Hardware benchmark harness
-├── 🎨 resources/              # Web UI assets & universal llamafile binaries
-├── 📝 logs/                   # Clean, timestamped audit logs (lumina.log)
-├── 💾 model_context/          # Stored conversational context files
-├── ☕ Jre/                    # Bundled zero-config JRE runtimes (macOS, Windows)
-└── 🐍 python-dependencies/    # Bundled zero-config CPython runtimes (macOS, Windows)
-```
+| Pain point with traditional local-AI setups | ⚡ Lumina's approach | 🎯 Result |
+|---|---|---|
+| Broken `pip`/Java installs, version conflicts | Bundled JRE + bundled CPython, auto-detected per OS | Works instantly, out of the box |
+| Sudden crashes when RAM/VRAM runs out | SmartSwitch watchdog with same-port hot-swap | No dropped connections, no lost work |
+| Forgetful chat or slow, bloated RAG | 0.5B semantic router + dual-tier vector memory | Fast answers, relevant context only |
+| Guessing whether a model will run well | Physical hardware bandwidth sensing (`--assess`) | Accurate tokens/sec forecast before you download |
+| Cloud APIs seeing your data | 100% offline, air-gapped execution | Full privacy, zero telemetry |
 
----
+<br>
 
-## 🔍 Auditing & Diagnostics
+<a id="-frequently-asked-questions"></a>
+## ❓ Frequently Asked Questions
 
-Lumina uses an **enterprise-grade noise filter**. All noisy compilation chatter, JVM warnings, and dependency notices are suppressed from your terminal screen to give you a clean UI, while **100% of raw diagnostics are captured** in:
+#### Is Lumina open source?
+Yes. Lumina is licensed under Apache 2.0, and the entire toolchain — CLI, watchdog, memory layer, web dashboard, and Java backend — is free to run and modify.
 
-```text
-logs/lumina.log
-```
+#### Does Lumina need an internet connection?
+Only to download model weights the first time (`--setup` or `--download`). Inference, RAG, the agent, and the web dashboard all run fully offline afterward.
 
-To view live diagnostics in another terminal window:
+#### What model formats does Lumina support?
+GGUF weights served through `llamafile`, with an OpenAI-compatible `v1/chat/completions` endpoint so any OpenAI SDK client or IDE extension can connect.
+
+#### What happens if a model crashes or runs out of memory?
+The SmartSwitch watchdog (`./lumina --switch`) detects RAM inflation or a speed drop below threshold, saves and vectorizes the session context, and swaps in a fallback model on the same port automatically.
+
+#### Can I add my own tools for the agent to use?
+Yes. Drop a `.py` file into `Tools/` with a function signature and docstring in the first 6 lines — the agent auto-discovers it on the next run.
+
+<br>
+
+<a id="-command--flag-matrix"></a>
+## 📖 Command & Flag Matrix
+
+| Command | Sub-flags | Category | Description | Example |
+|---|---|---|---|---|
+| `--models` | — | 🌐 Web UI | Launches the local model store & dashboard | `./lumina --models` |
+| `--setup` | — | 📥 Downloader | Downloads pre-configured base GGUF weights | `./lumina --setup` |
+| `--download` | `[ModelID]` | 📥 Downloader | Downloads a custom model by ID from HuggingFace | `./lumina --download` |
+| `--assess` | — | 📊 Hardware | Estimates bandwidth & tokens/sec for target models | `./lumina --assess` |
+| `--bench` | — | ⚡ Benchmark | Runs a hardware benchmark across local models | `./lumina --bench` |
+| `--rag` | `[file]` `--context` | 🤖 Knowledge | Document RAG, optionally with live context tracking | `./lumina --rag --context data/sample.txt` |
+| `--context` | `[file]` `--embed` | 🧠 Memory | Shortcut for context-enabled RAG / vectorizes context | `./lumina --context --embed` |
+| `--embed` | — | 🗄️ Memory | Standalone command to embed conversation context | `./lumina --embed` |
+| `--launch` | `[model]` `[port]` | 🚀 Server | Spawns an OpenAI-compatible local server | `./lumina --launch Llama-3.2-1B-Instruct-Q4_K_M` |
+| `--switch` | `[fallback]` `[RAM %]` | 🔄 Watchdog | Runs the SmartSwitch self-healing watchdog | `./lumina --switch Qwen2.5-0.5B-Instruct-Q4_K_M 0.25` |
+| `--agentic` | `-q` `-p` `-i` `--verbose` | 🤖 Agent | Autonomous multi-step agent that chains tools | `./lumina --agentic -q "Save PyTorch info to a file" -i 10` |
+| `--install` | `[pkg ...]` | 📦 Package | Installs packages into the bundled Python env | `./lumina --install pandas scikit-learn` |
+| `--dependencies` | — | 📦 Setup | Installs all required Python dependencies | `./lumina --dependencies` |
+| `--gui` | — | 🖥️ Control Panel | Opens the Tkinter GUI with every command in one window | `./lumina --gui` |
+
+Full flag combinations and cheatsheets are documented in [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+<br>
+
+<a id="-feature-walkthroughs"></a>
+## 💻 Feature Walkthroughs
+
+### 🌐 Web Dashboard & built-in IDE
+
 ```bash
-tail -f logs/lumina.log
+./lumina --models
 ```
 
----
+Browse the local model catalog, check RAM/VRAM fit before downloading, and test prompts directly in the built-in editor — all served from `localhost:8080`, fully offline.
 
+<p align="center">
+  <img src="assest/Lumina_IDE.png" alt="Lumina IDE — built-in code editor with model port selection and live output" width="800"/>
+</p>
+
+### 🧠 Dual-tier memory in action
+
+```bash
+./lumina --context
+```
+
+- Ask *"Where was Albert Einstein born?"* → the 0.5B router detects a standalone question and searches document text only.
+- Later ask *"What did we discuss earlier about solar inverters?"* → the router detects a reference to past discussion and retrieves vectorized context from `data/context_chroma_db` instead.
+
+### 🔄 SmartSwitch self-healing
+
+```bash
+./lumina --switch Qwen2.5-0.5B-Instruct-Q4_K_M 0.25
+```
+
+```
+[Lumina Smartswitch] 🚀 Smart Switch started. Fallback: 'Qwen2.5-0.5B-Instruct-Q4_K_M' | Allowance: 25%
+[Lumina Smartswitch] ⚠️ Speed degradation detected: baseline=24.50 T/s -> current=15.20 T/s (< 75%)
+[Lumina Smartswitch] 🧠 Embedding session context into Chroma DB for continuity...
+[Lumina Smartswitch] ✔ Switched to 'Qwen2.5-0.5B-Instruct-Q4_K_M' on the same port!
+```
+
+<p align="center">
+  <img src="assest/Lumina_switch.png" alt="SmartSwitch watchdog monitoring baseline speed and hot-swapping models" width="800"/>
+</p>
+
+### 🤖 Agentic tool execution
+
+```bash
+./lumina --agentic -q "Search Wikipedia for Python programming and save it to a file" -p 50023 -i 2
+```
+
+The agent classifies whether the query needs tools, discovers available tools by scanning `Tools/`, decides which to call, executes each one with the bundled Python runtime, and feeds results back into the loop until the task is marked `DONE`.
+
+<p align="center">
+  <img src="assest/Lumina_agentic.png" alt="Agentic mode scraping Wikipedia and saving the result to a file" width="800"/>
+</p>
+
+<br>
+
+<a id="-system-architecture"></a>
+## 📐 System Architecture
+
+```mermaid
+flowchart TB
+    subgraph UI["🖥️ Access Layer"]
+        CLI["Terminal CLI (./lumina)"]
+        WEB["Web Dashboard (localhost:8080)"]
+    end
+
+    subgraph Core["⚡ Lumina Core Dispatcher"]
+        OS_DETECT["OS Detection (macOS / Windows / Linux)"]
+        FILTER["Noise Filter & Log Engine"]
+    end
+
+    subgraph Memory["🧠 Memory & Routing Layer"]
+        CLASSIFIER["0.5B Semantic Router"]
+        CONTEXT_DB[("Context Vector Store")]
+        DOC_DB[("Document Vector Store")]
+    end
+
+    subgraph Watchdog["🛡️ Reliability"]
+        SMART_SW["SmartSwitch Watchdog"]
+    end
+
+    subgraph Inference["🚀 Inference Engine"]
+        LLAMAFILE["llamafile OpenAI-Compatible Server"]
+        GGUF["Local GGUF Weights"]
+    end
+
+    CLI --> OS_DETECT
+    WEB --> OS_DETECT
+    OS_DETECT --> FILTER
+    FILTER --> CLASSIFIER
+    CLASSIFIER -->|history| CONTEXT_DB
+    CLASSIFIER -->|documents| DOC_DB
+    CONTEXT_DB --> LLAMAFILE
+    DOC_DB --> LLAMAFILE
+    LLAMAFILE --> GGUF
+    SMART_SW -->|monitors| LLAMAFILE
+```
+
+Full component-level detail lives in [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+<br>
+
+## 📁 Project Structure
+
+```
+Lumina/
+├── Lumina.py               # Cross-platform CLI dispatcher
+├── lumina / lumina.bat     # Fast launchers (macOS/Linux, Windows)
+├── models/                 # Local GGUF model storage
+├── scripts/                # classifier.py, Smartswitch.py, rag.py, agentic_rag.py, launch_model.py
+├── Tools/                  # Drop-in tools auto-discovered by the agent
+├── src/java/lumina/        # Java backend (web server, hardware assessment)
+├── resources/              # Web UI assets & llamafile binaries
+├── logs/                   # Timestamped audit logs
+├── Jre/                    # Bundled JRE runtimes
+└── python-dependencies/    # Bundled CPython runtimes
+```
+
+<br>
+
+<a id="-contributing"></a>
 ## 🤝 Contributing
 
-Contributions, feature requests, and feedback are welcome!
-1. Fork the Repository
-2. Create your Feature Branch (`git checkout -b feature/MyFeature`)
-3. Commit your Changes (`git commit -m 'Add MyFeature'`)
-4. Push to the Branch (`git push origin feature/MyFeature`)
+Contributions, feature requests, and feedback are welcome.
+
+1. Fork the repository
+2. Create your feature branch: `git checkout -b feature/MyFeature`
+3. Commit your changes: `git commit -m 'Add MyFeature'`
+4. Push to the branch: `git push origin feature/MyFeature`
 5. Open a Pull Request
 
----
+<br>
 
 ## 📄 License
 
-Distributed under the **Apache 2.0 License**. See [`LICENSE`](file:///Users/apple/Lumina/LICENSE) for details.
+Distributed under the **Apache 2.0 License**. See [`LICENSE`](LICENSE) for details.
 
-<div align="center">
-  <sub>Built with 💜 for private, resilient, high-performance local AI.</sub>
-</div>
+<p align="center"><sub>Built for private, resilient, high-performance local AI.</sub></p>
