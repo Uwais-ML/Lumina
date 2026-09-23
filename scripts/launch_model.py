@@ -3,6 +3,12 @@ import socket
 import subprocess
 import sys
 import time
+import argparse
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
 
 
 def find_free_port():
@@ -12,7 +18,19 @@ def find_free_port():
         return s.getsockname()[1]
 
 
-def launchmodel(Modelname=None, port=None):
+def launchmodel(Modelname=None, port=None, host="127.0.0.1", startup_timeout=30.0, max_attempts=5):
+    """
+    Launch a GGUF model via llamafile server.
+
+    Parameters
+    ----------
+    Modelname        : str   — Model name (with or without .gguf extension)
+    port             : int   — Port to bind to (auto-selects a free port if None)
+    host             : str   — Host address to bind to (default: 127.0.0.1)
+    startup_timeout  : float — Seconds to wait for server ready signal (default: 30.0)
+    max_attempts     : int   — Number of port-finding retry attempts (default: 5)
+    """
+
     if Modelname is None:
         if len(sys.argv) < 2:
             print("[!] Error: Missing model name argument.")
@@ -63,7 +81,7 @@ def launchmodel(Modelname=None, port=None):
         log_file_path = os.path.join(log_dir, f"llamafile_{base_model_name}.log")
 
         # Retry loop for port allocation if specific port is busy
-        max_attempts = 5
+        poll_steps = max(1, int(startup_timeout / 0.2))
         for attempt in range(max_attempts):
             allocated_port = int(port) if (port is not None and attempt == 0) else find_free_port()
             log_file = open(log_file_path, "w")
@@ -73,10 +91,9 @@ def launchmodel(Modelname=None, port=None):
                     llamafile_full_path,
                     "--server",
                     "--host",
-                    "127.0.0.1",
+                    host,
                     "--port",
                     str(allocated_port),
-                    "--nobrowser",
                     "-m",
                     path,
                 ]
@@ -84,17 +101,19 @@ def launchmodel(Modelname=None, port=None):
                     cmd_args, stdout=log_file, stderr=subprocess.STDOUT, text=True
                 )
             else:
-                shell_cmd = f"'{llamafile_full_path}' --server --host 127.0.0.1 --port {allocated_port} -m '{path}'"
+                shell_cmd = f"'{llamafile_full_path}' --server --host {host} --port {allocated_port} -m '{path}'"
                 process = subprocess.Popen(
                     ["sh", "-c", shell_cmd],
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
                     text=True,
+
                 )
 
-            # Wait up to 5 seconds for server startup
+            # Wait up to startup_timeout for server startup
             started = False
-            for _ in range(25):
+            ready_markers = ("server is listening", "HTTP server listening", "model loaded", "all slots are idle")
+            for _ in range(poll_steps):
                 time.sleep(0.2)
                 if process.poll() is not None:
                     # Check log for port binding failure
@@ -108,20 +127,31 @@ def launchmodel(Modelname=None, port=None):
                     # Check if server listening message appeared in log
                     with open(log_file_path, "r", encoding="utf-8", errors="ignore") as rf:
                         log_content = rf.read()
-                        if "server is listening" in log_content or "model loaded" in log_content:
+                        if any(marker in log_content for marker in ready_markers):
                             started = True
                             break
 
             if started or process.poll() is None:
-                print(f"[+] Success! Llamafile is live in the background.")
-                print(f"[+] API Endpoint: http://127.0.0.1:{allocated_port}/v1")
-                print(f"[+] Background PID: {process.pid}")
-                print(f"[+] Logs are being written to: {log_file_path}")
+                if not started:
+                    print(f"[*] Model warming up (PID: {process.pid})")
+                print(f"[+] {base_model_name} · :{allocated_port} · PID {process.pid}")
                 try:
                     import urllib.request, json
                     data = json.dumps({"port": allocated_port}).encode('utf-8')
                     req = urllib.request.Request("http://127.0.0.1:8080/api/modelport", data=data, headers={'Content-Type': 'application/json'})
                     urllib.request.urlopen(req, timeout=2)
+                except Exception:
+                    pass
+
+                try:
+                    import Smartswitch
+                    Smartswitch.raminitilization(
+                        base_model_name,
+                        process.pid,
+                        port=allocated_port,
+                        log_file=log_file_path,
+                        init_timeout=startup_timeout,
+                    )
                 except Exception:
                     pass
 
@@ -155,9 +185,88 @@ def youchoose():
                     print(f"Extracted parameter: {param}")
 
 
+def _build_parser():
+    parser = argparse.ArgumentParser(
+        prog="launch_model",
+        description="Lumina Model Launcher — starts a GGUF model via llamafile server.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  # Backward-compatible positional args\n"
+            "  python launch_model.py Qwen2.5-0.5B-Instruct-Q4_K_M 8080\n\n"
+            "  # Named flags — full control\n"
+            "  python launch_model.py --model Qwen2.5-0.5B-Instruct-Q4_K_M \\\n"
+            "    --port 8080 --host 127.0.0.1 --startup-timeout 10.0 --max-attempts 3"
+        ),
+    )
+
+    # Positional args (backward compat)
+    parser.add_argument(
+        "model_pos",
+        nargs="?",
+        default=None,
+        metavar="MODEL",
+        help="GGUF model name (positional, backward compat — prefer --model)",
+    )
+    parser.add_argument(
+        "port_pos",
+        nargs="?",
+        type=int,
+        default=None,
+        metavar="PORT",
+        help="Port to bind to (positional, backward compat — prefer --port)",
+    )
+
+    # Named flags
+    parser.add_argument(
+        "--model",
+        default="Llama-3.2-1B-Instruct-Q4_K_M",
+        metavar="MODEL",
+        help="GGUF model name (default: Llama-3.2-1B-Instruct-Q4_K_M)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        metavar="PORT",
+        help="Port to bind to (auto-selects a free port if None)",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        metavar="HOST",
+        help="Host address to bind to (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--startup-timeout",
+        type=float,
+        default=30.0,
+        metavar="S",
+        help="Seconds to wait for server ready signal (default: 30.0)",
+    )
+    parser.add_argument(
+        "--max-attempts",
+        type=int,
+        default=5,
+        metavar="N",
+        help="Number of port-finding retry attempts (default: 5)",
+    )
+
+    return parser
+
+
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        target_port = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else None
-        launchmodel(sys.argv[1], port=target_port)
-    else:
-        launchmodel("Llama-3.2-1B-Instruct-Q4_K_M")
+    parser = _build_parser()
+    args = parser.parse_args()
+
+    # Named flags take precedence; positionals are the backward-compat fallback
+    model_name = args.model_pos if args.model_pos is not None else args.model
+    port = args.port_pos if args.port_pos is not None else args.port
+
+    launchmodel(
+        Modelname=model_name,
+        port=port,
+        host=args.host,
+        startup_timeout=args.startup_timeout,
+        max_attempts=args.max_attempts,
+    )

@@ -38,23 +38,47 @@ CLR_RESET = "\033[0m"
 # Regex for stripping ANSI escape sequences for file logging
 ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
+# Suppress noisy third-party warnings system-wide at startup
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["HF_HUB_DISABLE_EXPERIMENTAL_WARNING"] = "1"
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["PYTHONWARNINGS"] = "ignore"
+os.environ["LOGURU_LEVEL"] = "ERROR"
+
 # Known background noise patterns to suppress from terminal output (logged to file only)
 NOISE_PATTERNS = [
+    # HuggingFace & Transformers warnings
+    r"HF_HUB_DISABLE_SYMLINKS_WARNING",
+    r"HF_HUB_DISABLE_EXPERIMENTAL_WARNING",
+    r"huggingface_hub",
+    r"The cache for model files in Hugging Face Hub",
+    r"The current process just forked",
+    r"clean_up_tokenization_spaces",
+    r"\[transformers\]",
+    r"transformers",
+
+    # Python Warnings & Deprecations
+    r"UserWarning:",
+    r"FutureWarning:",
+    r"DeprecationWarning:",
+    r"LangChainDeprecationWarning:",
+    r"TracerWarning:",
+    r"PyTorch",
+    r"torch\.",
+    r"onnxruntime",
+    r"A module that was compiled using NumPy",
+    r"UserWarning: Failed to initialize NumPy",
+    r"To support both 1\.x and 2\.x versions of NumPy",
+    r"If you are a user of the module",
+
+    # Java & System Noise
     r"SLF4J:",
     r"WARNING: A restricted method in java\.lang\.System",
     r"WARNING: java\.lang\.System::load",
     r"WARNING: Use --enable-native-access",
     r"WARNING: Restricted methods will be blocked",
-    r"DeprecationWarning:",
-    r"\[transformers\] Disabling PyTorch",
-    r"\[transformers\] PyTorch was not found",
-    r"UserWarning: Failed to initialize NumPy",
-    r"A module that was compiled using NumPy",
-    r"WARNING: There was an error checking the latest version of pip",
-    r"WARNING: Target directory",
-    r"To support both 1\.x and 2\.x versions of NumPy",
-    r"If you are a user of the module, the easiest solution",
-    r"We expect that some modules will need time",
     r"See http://www\.slf4j\.org/codes\.html",
     r"\[INFO\] Scanning for projects\.\.\.",
     r"\[INFO\] Building ",
@@ -62,35 +86,44 @@ NOISE_PATTERNS = [
     r"Requirement already satisfied:",
     r"org\.slf4j\.impl\.StaticLoggerBinder",
     r"com\.sun\.jna\.Native",
+
+    # HTTP & Llamafile Log Traces
+    r"HTTP Request: POST",
+    r"HTTP Request: GET",
+    r"^\d+\.\d+\.\d+",
+    r"\bI srv\b",
+    r"\bI load_model\b",
+    r"\bI slot\b",
+    r"\bW srv\b",
+    r"\bW load\b",
 ]
 
 # Core Python packages required by Lumina scripts
+# Pinned to exact versions matching the bundled macOS/Windows env for reproducibility
 REQUIRED_PACKAGES = [
-    "huggingface-hub<1.0.0",
-    "langchain",
-    "langchain-community",
-    "langchain-text-splitters",
-    "langchain-chroma",
-    "langchain-huggingface",
-    "langchain-openai",
-    "langchain-core",
-    "chromadb",
-    "sentence-transformers",
-    "psutil",
-    "pydantic",
-    "requests",
-    "transformers<4.45.0",
-    "tokenizers",
-    "onnxruntime",
-    "numpy<2",
-    "tqdm",
-    "tiktoken",
-    "openai",
-    "rich",
-    "python-dotenv",
-    "pyyaml",
-    "regex",
-    "safetensors",
+    "huggingface-hub==1.26.0",
+    "langchain==1.3.15",
+    "langchain-community==0.4.2",
+    "langchain-text-splitters==1.1.2",
+    "langchain-openai==1.5.1",
+    "langchain-core==1.5.5",
+    "chromadb==1.5.9",
+    "sentence-transformers==5.7.0",
+    "psutil==5.9.8",
+    "pydantic==2.13.4",
+    "requests==2.34.2",
+    "transformers==5.15.0",
+    "tokenizers==0.22.2",
+    "onnxruntime==1.23.2",
+    "numpy==2.2.6",
+    "tqdm==4.70.0",
+    "tiktoken==0.13.0",
+    "openai==3.1.0",
+    "rich==15.0.0",
+    "python-dotenv==1.2.2",
+    "pyyaml==6.0.3",
+    "regex==2026.7.19",
+    "safetensors==0.8.0",
     "pillow",
 ]
 
@@ -514,6 +547,10 @@ COMMANDS = {
         "type": "builtin",
         "description": "Installs ALL required Python dependencies into the bundled env",
     },
+    "--gui": {
+        "type": "builtin",
+        "description": "Opens the Lumina Tkinter GUI control panel (all commands & arguments in one window)",
+    },
 }
 
 
@@ -691,6 +728,17 @@ def main():
             install_package(extra_args)
         elif command == "--dependencies":
             install_all_dependencies()
+        elif command == "--gui":
+            gui_script = os.path.join(PROJECT_ROOT, "lumina_gui.py")
+            if not os.path.exists(gui_script):
+                lumina_log("lumina_gui.py not found in project root.", tag="GUI", level="ERROR")
+                sys.exit(1)
+            python_bin, python_home = get_bundled_python()
+            env = os.environ.copy()
+            if python_home:
+                env["PYTHONHOME"] = python_home
+            lumina_log("Launching Lumina GUI control panel...", tag="GUI", level="SUCCESS")
+            subprocess.Popen([python_bin, gui_script], cwd=PROJECT_ROOT, env=env)
 
 
 if __name__ == "__main__":

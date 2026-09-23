@@ -1,4 +1,11 @@
 import os
+import warnings
+warnings.filterwarnings("ignore")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+
 import requests
 import launch_model
 
@@ -30,64 +37,70 @@ def classify(query, save=True):
     port = initialize()
     if Model_status and port is not None:
         try:
-            response = requests.post(
-                f"http://127.0.0.1:{port}/v1/chat/completions",
-                json={
-                    "model": "qwen",
-                    "temperature": 0,
-                    "max_tokens": 10,
-                    "messages": [
-                        {"role": "system", "content": "Classify as 'casual' or 'not_casual' based on if its casual chit chat or a technical question. Output ONLY the label."},
-                        {"role": "user", "content": f"{query}"}
-                    ]
-                },
-                timeout=15
-            )
-            decision = response.json()["choices"][0]["message"]["content"].strip().lower()
-            is_technical = "not_casual" in decision or "not casual" in decision or ("not" in decision and "casual" in decision)
-            
-            if is_technical and save:
-                context_file = DEFAULT_CONTEXT_FILE
-                querys = ""
-                if os.path.exists(context_file):
-                    with open(context_file, "r", encoding="utf-8", errors="ignore") as f:
-                        querys = f.read()
-                querys = querys + f"\n\n{query}\n\n"
-                with open(context_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n\n{query}\n\n")
-                with open(os.path.join(LOGS_DIR, "context"), "w", encoding="utf-8") as f:
-                    f.write(querys)
-                return True
-            return is_technical
+            import Smartswitch
+            payload = {
+                "model": "qwen",
+                "temperature": 0,
+                "max_tokens": 5,
+                "messages": [
+                    {"role": "system", "content": "Task: Classify text as CASUAL (greetings, hi, hello, how are you, small talk) or NOT_CASUAL (technical questions, definitions, queries, tasks). Reply ONLY CASUAL or NOT_CASUAL."},
+                    {"role": "user", "content": f"{query}"}
+                ]
+            }
+            response = Smartswitch.safe_query(port, payload=payload, timeout=15)
+            if response is not None and response.status_code == 200:
+                decision = response.json()["choices"][0]["message"]["content"].strip().upper()
+                is_technical = "NOT_CASUAL" in decision or "NOT CASUAL" in decision or "TECHNICAL" in decision
+                
+                if is_technical and save:
+                    context_file = DEFAULT_CONTEXT_FILE
+                    querys = ""
+                    if os.path.exists(context_file):
+                        with open(context_file, "r", encoding="utf-8", errors="ignore") as f:
+                            querys = f.read()
+                    querys = querys + f"\n\n{query}\n\n"
+                    with open(context_file, "a", encoding="utf-8") as f:
+                        f.write(f"\n\n{query}\n\n")
+                    with open(os.path.join(LOGS_DIR, "context"), "w", encoding="utf-8") as f:
+                        f.write(querys)
+                    return True
+                return is_technical
         except Exception as e:
             print(f"Warning: Classification request failed: {e}")
     return False
 
 def needs_context(query):
-    """Uses 0.5B model to check if the query requires prior conversation history/context."""
+    """Uses intent detection to check if the query requires prior conversation history/context."""
+    context_cues = [
+        "earlier", "previous", "previously", "we discussed", "we talked about",
+        "talked about", "talk about", "past discussion", "our discussion", "last conversation",
+        "you said", "we mentioned", "that topic", "prior conversation",
+        "what we talked", "what did we discuss", "our earlier", "talk about before"
+    ]
+    query_lower = query.lower()
+    if any(cue in query_lower for cue in context_cues):
+        return True
+
     port = initialize()
     if Model_status and port is not None:
         try:
+            import Smartswitch
             prompt = (
-                f'Classify question: "{query}"\n'
-                f'Option A: Refers to previous conversation or past discussion\n'
-                f'Option B: General question or standalone topic\n'
-                f'Answer (A or B):'
+                f'Determine if this question asks to recall prior conversation history: "{query}".\n'
+                f'Reply YES if it refers to past chat history, or NO if it is a general standalone topic.'
             )
-            response = requests.post(
-                f"http://127.0.0.1:{port}/v1/chat/completions",
-                json={
-                    "model": "qwen",
-                    "temperature": 0,
-                    "max_tokens": 4,
-                    "messages": [
-                        {"role": "user", "content": prompt}
-                    ]
-                },
-                timeout=15
-            )
-            decision = response.json()["choices"][0]["message"]["content"].strip().upper()
-            return ("OPTION A" in decision) or decision.startswith("A")
+            payload = {
+                "model": "qwen",
+                "temperature": 0,
+                "max_tokens": 5,
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ]
+            }
+            response = Smartswitch.safe_query(port, payload=payload, timeout=15)
+            if response is not None and response.status_code == 200:
+                decision = response.json()["choices"][0]["message"]["content"].strip().upper()
+                return decision.startswith("YES")
         except Exception as e:
             print(f"Warning: Context check failed: {e}")
     return False

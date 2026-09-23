@@ -1,3 +1,17 @@
+import os
+import sys
+import warnings
+
+# Suppress HuggingFace, Transformers, and third-party warnings
+warnings.filterwarnings("ignore")
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["HF_HUB_DISABLE_EXPERIMENTAL_WARNING"] = "1"
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["PYTHONWARNINGS"] = "ignore"
+os.environ["LOGURU_LEVEL"] = "ERROR"
+
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 try:
@@ -9,8 +23,6 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.documents import Document
 import hashlib
-import os
-import sys
 import classifier
 
 def get_embedding_device():
@@ -245,63 +257,214 @@ class AIcall:
         ]
         
         print("🤖 Generating response from Qwen...")
-        response = self.llm.invoke(messages)
-        return response.content
+        try:
+            import Smartswitch
+            Smartswitch.store_query_buffer(
+                {"query": query, "context_length": len(context)},
+                endpoint="/v1/chat/completions",
+                port=self.port,
+            )
+        except Exception:
+            pass
+
+        try:
+            response = self.llm.invoke(messages)
+            content = response.content
+        except Exception as e:
+            print(f"⚠️ Initial request interrupted: {e}. Checking fallback on port {self.port}...")
+            time.sleep(2.0)
+            try:
+                response = self.llm.invoke(messages)
+                content = response.content
+            except Exception as e2:
+                print(f"❌ Generation failed after retry: {e2}")
+                raise e2
+        finally:
+            try:
+                import Smartswitch
+                Smartswitch.release_query_buffer()
+            except Exception:
+                pass
+
+        return content
 
     # Backward compatibility alias
     def generate_reponse(self, query, context_chunks):
         return self.generate_response(query, context_chunks)
 
 
-if __name__ == "__main__":
-    try:
-        context_enabled = "--context" in sys.argv
-        embed_only = "--embed" in sys.argv or "--embedd" in sys.argv
+def _build_rag_parser():
+    parser = argparse.ArgumentParser(
+        prog="rag",
+        description=(
+            "Lumina RAG Pipeline — loads a document into a local vector store\n"
+            "and answers questions using a local LLM via retrieval-augmented generation."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  # Basic — point to any text file (positional or named flag)\n"
+            "  python rag.py data/report.txt\n"
+            "  python rag.py --file data/report.txt\n\n"
+            "  # Full control for advanced users\n"
+            "  python rag.py --file data/report.txt --port 8080 \\\n"
+            "    --chunk-size 800 --overlap 100 --k 5 \\\n"
+            "    --search-type mmr --db-dir ./my_chroma \\\n"
+            "    --max-turns 20 --force-rebuild\n\n"
+            "  # Context persistence (saves Q&A into classifier memory)\n"
+            "  python rag.py --file data/report.txt --context\n\n"
+            "  # Embed context file into vector DB and exit\n"
+            "  python rag.py --embed"
+        ),
+    )
 
-        if embed_only:
+    # File path — positional (backward compat) OR named flag
+    parser.add_argument(
+        "file_pos",
+        nargs="?",
+        default=None,
+        metavar="FILE",
+        help="Path to the document file (positional, backward compat — prefer --file)",
+    )
+    parser.add_argument(
+        "--file", "-f",
+        dest="file_flag",
+        default=None,
+        metavar="PATH",
+        help="Path to the document file to load into RAG (default: data/sample.txt)",
+    )
+    parser.add_argument(
+        "--port", "-p",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Port the local LLM server is running on (default: prompts interactively, "
+            "or reads LUMINA_PORT env var)"
+        ),
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=500,
+        metavar="N",
+        help="Token chunk size for text splitting (default: 500)",
+    )
+    parser.add_argument(
+        "--overlap",
+        type=int,
+        default=50,
+        metavar="N",
+        help="Chunk overlap tokens for text splitting (default: 50)",
+    )
+    parser.add_argument(
+        "--k",
+        type=int,
+        default=3,
+        metavar="N",
+        help="Number of retrieved chunks per query (default: 3)",
+    )
+    parser.add_argument(
+        "--search-type",
+        default="similarity",
+        choices=["similarity", "mmr"],
+        metavar="TYPE",
+        help="Vector search type: similarity or mmr (default: similarity)",
+    )
+    parser.add_argument(
+        "--db-dir",
+        default="./chroma_db",
+        metavar="PATH",
+        help="Path to the Chroma vector store directory (default: ./chroma_db)",
+    )
+    parser.add_argument(
+        "--max-turns",
+        type=int,
+        default=10,
+        metavar="N",
+        help="Maximum number of Q&A turns per session (default: 10)",
+    )
+    parser.add_argument(
+        "--context",
+        action="store_true",
+        default=False,
+        help="Enable context persistence — saves Q&A into classifier memory",
+    )
+    parser.add_argument(
+        "--embed",
+        action="store_true",
+        default=False,
+        help="Embed the stored context file into the vector DB and exit",
+    )
+    parser.add_argument(
+        "--force-rebuild",
+        action="store_true",
+        default=False,
+        help="Force the vector store to be rebuilt even if a DB already exists",
+    )
+
+    return parser
+
+
+if __name__ == "__main__":
+    import argparse
+
+    try:
+        parser = _build_rag_parser()
+        args = parser.parse_args()
+
+        # --embed: embed context file and exit immediately
+        if args.embed:
             print("🧠 Embedding context file into vector database...")
             classifier.embed_context_file()
             sys.exit(0)
 
-        non_flag_args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
-        file_path = non_flag_args[0] if non_flag_args else "data/sample.txt"
+        # Resolve file path: named flag takes precedence over positional, then default
+        file_path = args.file_flag or args.file_pos or "data/sample.txt"
 
         if not os.path.exists(file_path):
             print(f" Error: File not found: {file_path}")
             print(f" Current directory: {os.getcwd()}")
+            print(f" Tip: use --file <path> to specify the document location")
             sys.exit(1)
 
         print(f"Using file: {file_path}")
-        if context_enabled:
+        if args.context:
             print("🧠 Context tracking & persistence enabled (--context)")
 
-        port_env = os.getenv("LUMINA_PORT")
-        if not port_env:
-            port_input = input("Enter the port number [default 8080]: ").strip() or "8080"
+        # Resolve port: --port flag → LUMINA_PORT env var → interactive prompt
+        if args.port is not None:
+            port = args.port
         else:
-            port_input = port_env
-        port = int(port_input)
+            port_env = os.getenv("LUMINA_PORT")
+            if port_env:
+                port = int(port_env)
+            else:
+                port_input = input("Enter the port number [default 8080]: ").strip() or "8080"
+                port = int(port_input)
 
         loader = TextLoaderWrapper(file_path)
         docs = loader.load_text()
-        db = Database("./chroma_db")
+        db = Database(args.db_dir)
         isthereaduplicate = stopdeduplication(docs)
 
         if isthereaduplicate and not db.id_exists(f"{isthereaduplicate}_0"):
-            chunks = loader.chunk_text(docs)
+            chunks = loader.chunk_text(docs, chunk_size=args.chunk_size, overlap=args.overlap)
             vectorstore = db.create_vectorstore(chunks, isthereaduplicate)
             print("New database created with embeddings")
         else:
-            vectorstore = db.load_vectorstore()
+            vectorstore = db.get_vectorstore(force_rebuild=args.force_rebuild)
             print("Existing database loaded successfully")
-        
-        for i in range(10):
+
+        for i in range(args.max_turns):
             query = input("\n Enter your question (or 'exit' to quit): ").strip()
             if not query or query.lower() in ("exit", "quit", "q"):
                 break
-                
-            retrieved_chunks = db.query_vectorsearch(vectorstore, query, k=3)
-            
+
+            retrieved_chunks = db.query_vectorsearch(
+                vectorstore, query, k=args.k, search_type=args.search_type
+            )
+
             # Dynamic check: does the query refer to past context/history?
             if classifier.needs_context(query):
                 print("🧠 Past context reference detected. Querying context vector store...")
@@ -313,7 +476,7 @@ if __name__ == "__main__":
             answer = ai.generate_response(query, retrieved_chunks)
 
             print(f"ANSWER: {answer}")
-            if context_enabled:
+            if args.context:
                 is_technical = classifier.classify(query, save=True)
                 if is_technical:
                     classifier.classify(answer, save=True)
@@ -323,7 +486,7 @@ if __name__ == "__main__":
                 for idx, chunk in enumerate(retrieved_chunks, 1):
                     src = getattr(chunk, "metadata", {}).get("source", file_path)
                     print(f"{idx}. [{os.path.basename(src)}] {chunk.page_content[:200]}...")
-            
+
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback

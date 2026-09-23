@@ -1,7 +1,14 @@
+import os
+import warnings
+warnings.filterwarnings("ignore")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+
 import logging
 import classifier
 import requests
-import os
 import platform
 import subprocess
 import re
@@ -153,25 +160,25 @@ def classifyiftoolsneeded(query):
     
     if classifier.Model_status and port is not None:
         try:
-            response = requests.post(
-                f"http://127.0.0.1:{port}/v1/chat/completions",
-                json={
-                    "model": "qwen",
-                    "temperature": 0,
-                    "max_tokens": 50,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": "Answer only: tools or not_tools"
-                        },
-                        {
-                            "role": "user",
-                            "content": f"{query}"
-                        }
-                    ]
-                },
-                timeout=15
-            )
+            import Smartswitch
+            payload = {
+                "model": "qwen",
+                "temperature": 0,
+                "max_tokens": 50,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "Answer only: tools or not_tools"
+                    },
+                    {
+                        "role": "user",
+                        "content": f"{query}"
+                    }
+                ]
+            }
+            response = Smartswitch.safe_query(port, payload=payload, timeout=40)
+            if response is None or response.status_code != 200:
+                return None
             
             decision = response.json()["choices"][0]["message"]["content"].strip().lower()
             
@@ -278,27 +285,28 @@ async def agentic(query, port, iterations=5, temp=0.1, max_tokens=256, verbose=F
             if verbose:
                 print(f"\n[LOOP] Iteration {5 - iterations + 1}")
             
-            response = requests.post(
-                f"http://127.0.0.1:{port}/v1/chat/completions",
-                json={
-                    "model": "qwen",
-                    "temperature": temp,
-                    "max_tokens": max_tokens,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": """Output ONLY tool calls. Format: toolname(arg1,arg2)
+            import Smartswitch
+            payload = {
+                "model": "qwen",
+                "temperature": temp,
+                "max_tokens": max_tokens,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": """Output ONLY tool calls. Format: toolname(arg1,arg2)
 You only call Tool nothing else based on the query
 When all tasks done: DONE."""
-                        },
-                        {
-                            "role": "user",
-                            "content": f"{prompt}\n\nPreviously executed:{whatsdone}"
-                        }
-                    ]
-                },
-                timeout=40
-            )
+                    },
+                    {
+                        "role": "user",
+                        "content": f"{prompt}\n\nPreviously executed:{whatsdone}"
+                    }
+                ]
+            }
+            response = Smartswitch.safe_query(port, payload=payload, timeout=40)
+            if response is None or response.status_code != 200:
+                print(f"[!] Warning: Query failed or timed out during agent loop.")
+                break
             
             full_response = response.json()["choices"][0]["message"]["content"].strip()
             if verbose:
