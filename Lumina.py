@@ -15,6 +15,8 @@ import subprocess
 import sys
 import time
 import re
+import json
+import difflib
 from datetime import datetime
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -458,6 +460,145 @@ def install_all_dependencies():
     install_package(REQUIRED_PACKAGES)
 
 
+def list_local_models():
+    """Return GGUF model names (without .gguf) currently in models/."""
+    models_dir = os.path.join(PROJECT_ROOT, "models")
+    if not os.path.isdir(models_dir):
+        return []
+    return sorted(f[:-5] for f in os.listdir(models_dir) if f.endswith(".gguf"))
+
+
+def print_local_models():
+    models = list_local_models()
+    if not models:
+        lumina_log("No GGUF files in models/ yet.", tag="CLI", level="WARN")
+        lumina_log("First step:  ./lumina --setup", tag="CLI")
+        return False
+    lumina_log("Models on disk:", tag="CLI")
+    for name in models:
+        print(f"    {name}")
+    return True
+
+
+def print_store_ids():
+    store = os.path.join(PROJECT_ROOT, "resources", "llmstore.json")
+    try:
+        with open(store, "r", encoding="utf-8") as f:
+            entries = json.load(f)
+    except Exception:
+        lumina_log("Could not read resources/llmstore.json", tag="CLI", level="ERROR")
+        return
+    print(f" {CLR_SUCCESS}Catalog ids:{CLR_RESET}")
+    for item in entries:
+        mid = item.get("id")
+        name = item.get("filename_pattern") or item.get("name")
+        print(f"    {mid:>3}  {name}")
+
+
+def _flag_value(args, *names):
+    for i, token in enumerate(args):
+        if token in names and i + 1 < len(args) and not args[i + 1].startswith("-"):
+            return args[i + 1]
+        for name in names:
+            if token.startswith(name + "="):
+                return token.split("=", 1)[1]
+    return None
+
+
+def _positional_model(args):
+    for token in args:
+        if token.startswith("-"):
+            continue
+        return token
+    return None
+
+
+def preflight(command, extra_args):
+    """Catch empty/invalid invocations before spawning Java/Python."""
+    local = list_local_models()
+
+    if command == "--launch":
+        model = _flag_value(extra_args, "--model", "-m") or _positional_model(extra_args)
+        if not model:
+            lumina_log("Launch needs a model name.", tag="CLI", level="ERROR")
+            print_local_models()
+            print(f"\n  Example: {CLR_BOLD}./lumina --launch Qwen2.5-0.5B-Instruct-Q4_K_M{CLR_RESET}\n")
+            return False
+        stem = model[:-5] if model.endswith(".gguf") else model
+        path = os.path.join(PROJECT_ROOT, "models", stem + ".gguf")
+        if not os.path.isfile(path):
+            lumina_log(f"Model not found: {stem}.gguf", tag="CLI", level="ERROR")
+            print_local_models()
+            close = difflib.get_close_matches(stem, local, n=3, cutoff=0.35)
+            if close:
+                lumina_log("Did you mean: " + ", ".join(close), tag="CLI")
+            else:
+                lumina_log("Download base weights with:  ./lumina --setup", tag="CLI")
+            return False
+
+    elif command == "--switch":
+        model = _flag_value(extra_args, "--base-model") or _positional_model(extra_args)
+        if model:
+            stem = model[:-5] if model.endswith(".gguf") else model
+            path = os.path.join(PROJECT_ROOT, "models", stem + ".gguf")
+            if not os.path.isfile(path):
+                lumina_log(f"Fallback model not found: {stem}.gguf", tag="CLI", level="ERROR")
+                print_local_models()
+                return False
+        elif not local:
+            lumina_log("SmartSwitch needs a fallback GGUF in models/.", tag="CLI", level="ERROR")
+            lumina_log("First step:  ./lumina --setup", tag="CLI")
+            return False
+
+    elif command == "--agentic":
+        query = _flag_value(extra_args, "--query", "-q")
+        if not query:
+            lumina_log("Agentic mode needs a task. Pass -q \"...\"", tag="CLI", level="ERROR")
+            print('  Example: ./lumina --agentic -q "Save a short note about Python to a file"')
+            print("  The agent will start the 0.5B router if no --port is given.\n")
+            return False
+
+    elif command == "--download":
+        if not extra_args or extra_args[0] in ("-h", "--help"):
+            lumina_log("Download needs a numeric catalog id.", tag="CLI", level="ERROR" if extra_args[:1] not in (["-h"], ["--help"]) else "INFO")
+            print("  Example: ./lumina --download 1")
+            print_store_ids()
+            if extra_args[:1] in (["-h"], ["--help"]):
+                return True
+            return False
+        if extra_args and extra_args[0] not in ("-h", "--help"):
+            try:
+                int(extra_args[0])
+            except ValueError:
+                lumina_log(f"'{extra_args[0]}' is not a catalog id (expected a number).", tag="CLI", level="ERROR")
+                print_store_ids()
+                return False
+
+    elif command in ("--rag", "--context"):
+        if extra_args and extra_args[0] in ("-h", "--help"):
+            return True
+        file_path = _flag_value(extra_args, "--file", "-f")
+        if not file_path:
+            for token in extra_args:
+                if not token.startswith("-") and os.path.splitext(token)[1]:
+                    file_path = token
+                    break
+        if not file_path:
+            file_path = os.path.join(PROJECT_ROOT, "data", "sample.txt")
+        if not os.path.isfile(file_path):
+            lumina_log(f"Document not found: {file_path}", tag="CLI", level="ERROR")
+            lumina_log("Pass --file PATH  (txt / md). Example: ./lumina --rag --file data/sample.txt", tag="CLI")
+            return False
+
+    elif command in ("--bench", "--assess"):
+        if not local:
+            lumina_log("No local GGUF models — benchmark/assess will have nothing to run.", tag="CLI", level="WARN")
+            lumina_log("Run ./lumina --setup first, then retry.", tag="CLI")
+            return False
+
+    return True
+
+
 def build_java_classpath():
     """Builds self-contained classpath from target/classes, lib/*.jar, and target/*.jar."""
     cp_entries = []
@@ -550,6 +691,10 @@ COMMANDS = {
     "--gui": {
         "type": "builtin",
         "description": "Opens the Lumina Tkinter GUI control panel (all commands & arguments in one window)",
+    },
+    "--test": {
+        "type": "builtin",
+        "description": "Runs automated pytest test suites  [usage: --test all|bench|router|stress]",
     },
 }
 
@@ -739,6 +884,26 @@ def main():
                 env["PYTHONHOME"] = python_home
             lumina_log("Launching Lumina GUI control panel...", tag="GUI", level="SUCCESS")
             subprocess.Popen([python_bin, gui_script], cwd=PROJECT_ROOT, env=env)
+        elif command == "--test":
+            python_bin, python_home = get_bundled_python()
+            env = os.environ.copy()
+            site_pkgs = get_bundled_site_packages()
+            if site_pkgs and os.path.exists(site_pkgs):
+                env["PYTHONPATH"] = site_pkgs + (os.pathsep + env.get("PYTHONPATH", ""))
+
+            suite = extra_args[0] if extra_args else "all"
+            target_map = {
+                "bench": "tests/test_assesser_vs_router_benchmark.py",
+                "router": "tests/test_router_classification.py",
+                "stress": "tests/test_smartswitch_stress.py",
+                "all": "tests/",
+            }
+            test_target = target_map.get(suite, "tests/")
+            cmd = [python_bin, "-m", "pytest", test_target, "-v"]
+            if suite in ("bench", "router", "stress"):
+                cmd.append("-s")
+            lumina_log(f"Running automated test suite '{suite}' ({test_target})...", tag="Test")
+            sys.exit(subprocess.call(cmd, cwd=PROJECT_ROOT, env=env))
 
 
 if __name__ == "__main__":
