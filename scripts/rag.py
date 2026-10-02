@@ -12,16 +12,32 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTHONWARNINGS"] = "ignore"
 os.environ["LOGURU_LEVEL"] = "ERROR"
 
-from langchain_community.document_loaders import TextLoader
+from langchain_core.documents import Document
+try:
+    from langchain_community.document_loaders import TextLoader
+except (ImportError, AttributeError):
+    class TextLoader:
+        def __init__(self, file_path, encoding="utf-8"):
+            self.file_path = file_path
+            self.encoding = encoding
+        def load(self):
+            with open(self.file_path, "r", encoding=self.encoding, errors="replace") as f:
+                return [Document(page_content=f.read(), metadata={"source": self.file_path})]
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 try:
     from langchain_chroma import Chroma
 except ImportError:
     from langchain_community.vectorstores import Chroma
 from langchain_openai import ChatOpenAI
-from langchain_huggingface import HuggingFaceEmbeddings  
+try:
+    from langchain_huggingface import HuggingFaceEmbeddings
+except ImportError:
+    try:
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+    except ImportError:
+        from langchain_community.embeddings.huggingface import HuggingFaceEmbeddings
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.documents import Document
 import hashlib
 import classifier
 

@@ -11,5 +11,4 @@ data/
 logs/
 
 # Local dependencies & environments
-python-dependencies/
 python-dependencies/**/torch/

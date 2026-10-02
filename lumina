@@ -7,4 +7,16 @@ if [ ! -f "$PYTHON_BIN" ]; then
     PYTHON_BIN="python3"
 fi
 
+# Detect and export site-packages in bundled dependencies
+for LIB_DIR in "$SCRIPT_DIR/python-dependencies/macos-intel/lib" "$SCRIPT_DIR/python-dependencies/linux-intel/lib"; do
+    if [ -d "$LIB_DIR" ]; then
+        for PYDIR in $(ls -d "$LIB_DIR"/python3* 2>/dev/null | sort -r); do
+            if [ -d "$PYDIR/site-packages" ]; then
+                export PYTHONPATH="$PYDIR/site-packages:$SCRIPT_DIR/scripts:$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+                break 2
+            fi
+        done
+    fi
+done
+
 exec "$PYTHON_BIN" "$SCRIPT_DIR/Lumina.py" "$@"

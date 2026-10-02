@@ -368,30 +368,38 @@ def get_bundled_python():
 
 
 def get_bundled_site_packages():
-    """Returns the site-packages directory inside the bundled Python env for the current OS."""
+    """Returns the site-packages directory inside the bundled Python env for the current OS.
+    Auto-detects the installed Python version (newest first) so it works whether packages
+    were installed into python3.10, python3.11, python3.12, etc.
+    """
     os_type = detect_os()
-    if os_type == "macos":
-        return os.path.join(
-            PROJECT_ROOT,
-            "python-dependencies",
-            "macos-intel",
-            "lib",
-            "python3.10",
-            "site-packages",
+
+    def _find_site_packages(lib_dir):
+        """Walk lib_dir for the newest pythonX.Y that has a site-packages folder."""
+        if not os.path.isdir(lib_dir):
+            return None
+        candidates = sorted(
+            [d for d in os.listdir(lib_dir) if d.startswith("python3")],
+            reverse=True,
         )
+        for ver in candidates:
+            sp = os.path.join(lib_dir, ver, "site-packages")
+            if os.path.isdir(sp):
+                return sp
+        return None
+
+    if os_type == "macos":
+        lib_dir = os.path.join(PROJECT_ROOT, "python-dependencies", "macos-intel", "lib")
+        found = _find_site_packages(lib_dir)
+        return found or os.path.join(lib_dir, "python3.12", "site-packages")
     elif os_type == "windows":
         return os.path.join(
             PROJECT_ROOT, "python-dependencies", "windows", "Lib", "site-packages"
         )
     else:
-        return os.path.join(
-            PROJECT_ROOT,
-            "python-dependencies",
-            "linux-intel",
-            "lib",
-            "python3.10",
-            "site-packages",
-        )
+        lib_dir = os.path.join(PROJECT_ROOT, "python-dependencies", "linux-intel", "lib")
+        found = _find_site_packages(lib_dir)
+        return found or os.path.join(lib_dir, "python3.12", "site-packages")
 
 
 def get_pip_platform_flags():
@@ -731,7 +739,7 @@ def ensure_java_compiled():
 
     if java_files:
         try:
-            cmd = ["javac", "-d", target_classes]
+            cmd = ["javac", "--release", "17", "-d", target_classes]
             if cp:
                 cmd.extend(["-cp", cp])
             cmd.extend(java_files)
@@ -779,6 +787,15 @@ def run_python(script_path, extra_args):
     env = os.environ.copy()
     if python_home:
         env["PYTHONHOME"] = python_home
+
+    # Inject site-packages and scripts directory into PYTHONPATH
+    site_pkgs = get_bundled_site_packages()
+    scripts_dir = os.path.join(PROJECT_ROOT, "scripts")
+    pythonpath_dirs = [p for p in [site_pkgs, scripts_dir, PROJECT_ROOT] if p and os.path.exists(p)]
+    if pythonpath_dirs:
+        existing = env.get("PYTHONPATH", "")
+        combined = os.pathsep.join(pythonpath_dirs)
+        env["PYTHONPATH"] = f"{combined}{os.pathsep}{existing}" if existing else combined
 
     script_name = os.path.basename(script_path)
     tag = script_name.replace(".py", "").capitalize()
@@ -882,14 +899,27 @@ def main():
             env = os.environ.copy()
             if python_home:
                 env["PYTHONHOME"] = python_home
+            site_pkgs = get_bundled_site_packages()
+            scripts_dir = os.path.join(PROJECT_ROOT, "scripts")
+            pythonpath_dirs = [p for p in [site_pkgs, scripts_dir, PROJECT_ROOT] if p and os.path.exists(p)]
+            if pythonpath_dirs:
+                existing = env.get("PYTHONPATH", "")
+                combined = os.pathsep.join(pythonpath_dirs)
+                env["PYTHONPATH"] = f"{combined}{os.pathsep}{existing}" if existing else combined
             lumina_log("Launching Lumina GUI control panel...", tag="GUI", level="SUCCESS")
             subprocess.Popen([python_bin, gui_script], cwd=PROJECT_ROOT, env=env)
         elif command == "--test":
             python_bin, python_home = get_bundled_python()
             env = os.environ.copy()
+            if python_home:
+                env["PYTHONHOME"] = python_home
             site_pkgs = get_bundled_site_packages()
-            if site_pkgs and os.path.exists(site_pkgs):
-                env["PYTHONPATH"] = site_pkgs + (os.pathsep + env.get("PYTHONPATH", ""))
+            scripts_dir = os.path.join(PROJECT_ROOT, "scripts")
+            pythonpath_dirs = [p for p in [site_pkgs, scripts_dir, PROJECT_ROOT] if p and os.path.exists(p)]
+            if pythonpath_dirs:
+                existing = env.get("PYTHONPATH", "")
+                combined = os.pathsep.join(pythonpath_dirs)
+                env["PYTHONPATH"] = f"{combined}{os.pathsep}{existing}" if existing else combined
 
             suite = extra_args[0] if extra_args else "all"
             target_map = {
@@ -899,7 +929,13 @@ def main():
                 "all": "tests/",
             }
             test_target = target_map.get(suite, "tests/")
-            cmd = [python_bin, "-m", "pytest", test_target, "-v"]
+            cmd = [
+                python_bin,
+                "-c",
+                "import pytest, sys; sys.exit(pytest.main(sys.argv[1:]))",
+                test_target,
+                "-v",
+            ]
             if suite in ("bench", "router", "stress"):
                 cmd.append("-s")
             lumina_log(f"Running automated test suite '{suite}' ({test_target})...", tag="Test")

@@ -400,7 +400,7 @@ if __name__ == "__main__":
     
     print("RESULTS:")
     print("="*70)
-    print(f"Status: {result['status']}")
-    print(f"Result:\n{result['result']}")
-    if 'iterations_used' in result:
+    print(f"Status: {result.get('status', 'unknown')}")
+    print(f"Result:\n{result.get('result', result.get('query', result.get('message', 'N/A')))}")
+    if result.get('iterations_used') is not None:
         print(f"Iterations used: {result['iterations_used']}")

@@ -45,13 +45,27 @@ public class downloadmodel {
             String projectRoot = System.getProperty("user.dir");
             String baseDir = projectRoot + "/python-dependencies";
             String scriptPath = projectRoot + "/scripts/download_model.py";
+            String pythonExe = baseDir + pythonselect;
+            if (!new File(pythonExe).exists()) {
+                pythonExe = "python3";
+            }
             ProcessBuilder pb = new ProcessBuilder(
-                baseDir + pythonselect,
+                pythonExe,
                 scriptPath,
                 repoId,
                 filename,
                 "models/"
             );
+
+            // Inject PYTHONPATH if site-packages exists
+            String pathSep = osName.contains("win") ? ";" : ":";
+            String spWin = baseDir + "/windows/Lib/site-packages";
+            String spMac = baseDir + "/macos-intel/lib/python3.12/site-packages";
+            String spTarget = new File(spWin).exists() ? spWin : (new File(spMac).exists() ? spMac : null);
+            if (spTarget != null) {
+                String existing = pb.environment().get("PYTHONPATH");
+                pb.environment().put("PYTHONPATH", spTarget + (existing != null ? pathSep + existing : ""));
+            }
             
             pb.directory(new File(projectRoot));
             Runtime.getRuntime().addShutdownHook(new Thread(downloadmodel::shutdownhook));
@@ -62,6 +76,21 @@ public class downloadmodel {
             System.out.println("Download process exited with code: " + exitCode);
         }
         return process;
+    }
+
+    public static void main(String[] args) {
+        if (args.length == 0) {
+            System.out.println("Please provide a model ID to download. Example: lumina --download 1");
+            return;
+        }
+        try {
+            int modelId = Integer.parseInt(args[0]);
+            downloadmodel(modelId);
+        } catch (NumberFormatException e) {
+            System.err.println("Invalid model ID: " + args[0] + ". Please provide an integer ID.");
+        } catch (Exception e) {
+            System.err.println("Error downloading model: " + e.getMessage());
+        }
     }
 
 }
