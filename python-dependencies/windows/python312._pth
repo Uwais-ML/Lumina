@@ -1,0 +1,7 @@
+python312.zip
+.
+Lib
+Lib\site-packages
+..\..\scripts
+..\..
+import site

@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import torch
-import transformers
-from packaging import version
 from torch import Tensor, nn
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
@@ -196,13 +194,13 @@ class FitMixin:
         save_best_model: bool = True,
         max_grad_norm: float = 1,
         use_amp: bool = False,
-        callback: Callable[[float, int, int], None] = None,
+        callback: Callable[[float, int, int], None] | None = None,
         show_progress_bar: bool = True,
     ) -> None:
         """
         Deprecated training method from before Sentence Transformers v4.0, it is recommended to use
-        :class:`~sentence_transformers.sentence_transformer.trainer.CrossEncoderTrainer` instead. This method uses
-        :class:`~sentence_transformers.sentence_transformer.trainer.CrossEncoderTrainer` behind the scenes, but does
+        :class:`~sentence_transformers.cross_encoder.trainer.CrossEncoderTrainer` instead. This method uses
+        :class:`~sentence_transformers.cross_encoder.trainer.CrossEncoderTrainer` behind the scenes, but does
         not provide as much flexibility as the Trainer itself.
 
         This training approach uses a DataLoader and Loss function to train the model.
@@ -295,21 +293,13 @@ class FitMixin:
                 idx += 1
             return dir_name
 
-        # Transformers renamed `evaluation_strategy` to `eval_strategy` in v4.41.0
-        eval_strategy_key = (
-            "eval_strategy"
-            if version.parse(transformers.__version__) >= version.parse("4.41.0")
-            else "evaluation_strategy"
-        )
         args = CrossEncoderTrainingArguments(
             output_dir=_default_checkpoint_dir(),
             batch_sampler=batch_sampler,
             per_device_train_batch_size=batch_size,
             per_device_eval_batch_size=batch_size,
             num_train_epochs=epochs,
-            **{
-                eval_strategy_key: "steps" if evaluation_steps is not None and evaluation_steps > 0 else "no",
-            },
+            eval_strategy="steps" if evaluation_steps is not None and evaluation_steps > 0 else "no",
             eval_steps=evaluation_steps,
             max_grad_norm=max_grad_norm,
             fp16=use_amp,
@@ -431,12 +421,12 @@ class FitMixin:
         save_best_model: bool = True,
         max_grad_norm: float = 1,
         use_amp: bool = False,
-        callback: Callable[[float, int, int], None] = None,
+        callback: Callable[[float, int, int], None] | None = None,
         show_progress_bar: bool = True,
     ) -> None:
         """
         Deprecated training method from before Sentence Transformers v4.0, it is recommended to use
-        :class:`~sentence_transformers.sentence_transformer.trainer.CrossEncoderTrainer` instead. This method should
+        :class:`~sentence_transformers.cross_encoder.trainer.CrossEncoderTrainer` instead. This method should
         only be used if you encounter issues with your existing training scripts after upgrading to v4.0.
 
         This training approach uses a DataLoader and Loss function to train the model.
