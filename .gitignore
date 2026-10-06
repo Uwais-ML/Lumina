@@ -12,3 +12,8 @@ logs/
 
 # Local dependencies & environments
 python-dependencies/**/torch/
+.tools/
+node_modules/
+dist/
+dist-electron/
+release/

@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
+  <title>Lumina</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Window Drag Header / Titlebar -->
+  <header class="titlebar">
+    <div class="drag-region"></div>
+    <div class="titlebar-brand">
+      <div class="brand-emblem" id="app-logo">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+      </div>
+      <span class="brand-title">Lumina</span>
+    </div>
+
+    <!-- Active Model / Telemetry Pill -->
+    <div class="telemetry-pill" id="telemetry-pill">
+      <span class="pulse-dot" id="status-dot"></span>
+      <span class="model-name" id="status-model-name">Local LLM</span>
+      <span class="tps-chip" id="status-tps">-- T/s</span>
+    </div>
+
+    <div class="titlebar-spacer"></div>
+
+    <!-- Window Controls (Windows/Linux) -->
+    <div class="window-controls" id="window-controls">
+      <button class="win-btn" id="btn-minimize" title="Minimize">−</button>
+      <button class="win-btn" id="btn-maximize" title="Maximize">□</button>
+      <button class="win-btn close" id="btn-close" title="Close">✕</button>
+    </div>
+  </header>
+
+  <!-- App Layout Container -->
+  <div class="app-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-top">
+        <button class="new-chat-btn" id="new-chat-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>New Chat</span>
+        </button>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-section">
+        <div class="nav-item active" data-view="chat" id="nav-chat">
+          <span class="nav-icon">💬</span>
+          <span class="nav-text">Chat</span>
+        </div>
+        <div class="nav-item" data-view="models" id="nav-models">
+          <span class="nav-icon">🧠</span>
+          <span class="nav-text">Models & Control</span>
+        </div>
+        <div class="nav-item" data-view="store" id="nav-store">
+          <span class="nav-icon">🏪</span>
+          <span class="nav-text">Model Store</span>
+        </div>
+        <div class="nav-item" data-view="ide" id="nav-ide">
+          <span class="nav-icon">💻</span>
+          <span class="nav-text">Code Studio (IDE)</span>
+        </div>
+        <div class="nav-item" data-view="library" id="nav-library">
+          <span class="nav-icon">📚</span>
+          <span class="nav-text">Knowledge (RAG)</span>
+        </div>
+        <div class="nav-item" data-view="tools" id="nav-tools">
+          <span class="nav-icon">🤖</span>
+          <span class="nav-text">Agent & Tools</span>
+        </div>
+        <div class="nav-item" data-view="settings" id="nav-settings">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-text">Settings</span>
+        </div>
+      </nav>
+
+      <!-- Recent Conversations List -->
+      <div class="conversations-header">Recent Chats</div>
+      <div class="conversations-list" id="conversations-list">
+        <div class="conv-empty">No conversations yet</div>
+      </div>
+
+      <!-- System Health Indicator at bottom of sidebar -->
+      <div class="sidebar-footer">
+        <div class="sys-meter">
+          <div class="meter-label">RAM <span id="ram-meter-val">--%</span></div>
+          <div class="meter-bar"><div class="meter-fill" id="ram-meter-fill" style="width: 0%"></div></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Area -->
+    <main class="main-content">
+      <!-- 1. CHAT WORKSPACE VIEW -->
+      <section class="workspace-view active" id="view-chat">
+        <!-- Messages Area -->
+        <div class="messages-container" id="messages-container">
+          <!-- Initial Welcome View (Displayed when no messages) -->
+          <div class="welcome-screen" id="welcome-screen">
+            <div class="welcome-emblem">
+              <canvas id="sun-loader-canvas" class="sun-canvas"></canvas>
+            </div>
+            <h1 class="welcome-title">How can Lumina assist you?</h1>
+            <p class="welcome-subtitle">Local intelligence with real-time streaming, document RAG, and autonomous agents.</p>
+
+            <div class="starter-cards">
+              <div class="starter-card" data-prompt="Explain how RAG retrieval and vector databases work together.">
+                <div class="card-icon">📄</div>
+                <div class="card-title">Explore RAG Architecture</div>
+                <div class="card-desc">Ask Lumina to explain retrieval systems and local vector stores.</div>
+              </div>
+              <div class="starter-card" data-prompt="Inspect the system and summarize active hardware capabilities.">
+                <div class="card-icon">⚡</div>
+                <div class="card-title">Benchmark & System Specs</div>
+                <div class="card-desc">Check local model throughput, RAM allowance, and GPU speed.</div>
+              </div>
+              <div class="starter-card" data-prompt="Run an agentic task to check available tools in the workspace.">
+                <div class="card-icon">🤖</div>
+                <div class="card-title">Autonomous Agent Task</div>
+                <div class="card-desc">Let Lumina chain tools dynamically to accomplish tasks.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Chat Message Stream -->
+          <div class="chat-thread" id="chat-thread"></div>
+        </div>
+
+        <!-- Sticky Floating Generation Status Bar -->
+        <div class="stream-status-bar" id="stream-status-bar">
+          <div class="status-indicator-icon">
+            <canvas id="sun-status-canvas" class="sun-status-canvas"></canvas>
+          </div>
+          <span class="status-text" id="stream-status-text">Lumina is generating...</span>
+          <button class="stop-gen-btn" id="stop-gen-btn" title="Stop generating">
+            <span class="stop-icon">■</span> Stop
+          </button>
+        </div>
+
+        <!-- Chat Input Bar -->
+        <div class="input-panel">
+          <div class="input-wrapper">
+            <!-- Mode Badges -->
+            <div class="mode-toggles">
+              <button class="mode-btn active" data-mode="chat" title="Direct LLM chat">
+                <span>💬</span> Direct
+              </button>
+              <button class="mode-btn" data-mode="rag" title="Document Knowledge Base">
+                <span>📚</span> RAG
+              </button>
+              <button class="mode-btn" data-mode="agentic" title="Autonomous Multi-Step Agent">
+                <span>🤖</span> Agentic
+              </button>
+
+              <div class="mode-spacer"></div>
+
+              <select class="model-select" id="model-select">
+                <option value="qwen">Qwen 0.5B (Active)</option>
+                <option value="default">Default Model</option>
+              </select>
+            </div>
+
+            <!-- Textarea & Action -->
+            <div class="input-field-row">
+              <textarea 
+                id="user-input" 
+                rows="1" 
+                placeholder="Ask Lumina anything... (Press Enter to send, Shift+Enter for new line)"
+              ></textarea>
+              <button class="send-btn" id="send-btn" title="Send message">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 2L11 13"></path>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. MODELS & CONTROL VIEW -->
+      <section class="workspace-view" id="view-models">
+        <div class="view-header">
+          <h2>Models & Hardware Control</h2>
+          <p>Manage running models, trigger failover with SmartSwitch, run hardware assess, and manage local weights.</p>
+        </div>
+
+        <div class="view-grid">
+          <!-- Active Model & Controls Card -->
+          <div class="view-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <h3>Active Inference Model</h3>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn-danger-sm" id="btn-kill-active-model" title="Terminate current active model process">
+                  ■ Kill Model
+                </button>
+                <button class="btn-warning-sm" id="btn-trigger-smartswitch" title="Simulate failover and switch model immediately">
+                  ⚡ SmartSwitch
+                </button>
+              </div>
+            </div>
+            <div class="status-metric-grid" id="active-model-metrics">
+              <div class="metric-item">
+                <div class="metric-label">Model</div>
+                <div class="metric-val" id="metric-model">Detecting...</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">Port</div>
+                <div class="metric-val" id="metric-port">54993</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">Speed</div>
+                <div class="metric-val text-cyan" id="metric-tps">-- T/s</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">Tracking Mode</div>
+                <div class="metric-val text-emerald" id="metric-mode">RAM</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- System Assess & Benchmark Card -->
+          <div class="view-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <h3>System Assess & RAM Fitness</h3>
+              <button class="btn-primary-sm" id="btn-run-assess">
+                🔬 Run Assess
+              </button>
+            </div>
+            <div id="assess-results-container">
+              <p class="card-subtitle">Click "Run Assess" to evaluate local memory capacity and calculate estimated tokens/sec for each model.</p>
+            </div>
+          </div>
+
+          <!-- Local Models List Card -->
+          <div class="view-card full-width">
+            <h3>Local Models on Disk (models/)</h3>
+            <div class="models-list" id="models-list">
+              <div class="list-placeholder">Scanning models/ folder...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2B. MODEL STORE VIEW -->
+      <section class="workspace-view" id="view-store">
+        <div class="view-header">
+          <h2>HuggingFace Model Store & Catalog</h2>
+          <p>Browse pre-quantized GGUF models from HuggingFace and download directly into Lumina.</p>
+        </div>
+
+        <div class="view-grid">
+          <div class="view-card full-width">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <h3>Verified Models Catalog</h3>
+              <div id="store-feedback" style="font-size: 12px;"></div>
+            </div>
+            <div class="store-grid" id="store-grid">
+              <div class="list-placeholder">Loading model catalog...</div>
+      </section>
+
+      <!-- 2C. CODE STUDIO (VS CODE STYLE IDE) -->
+      <section class="workspace-view" id="view-ide">
+        <div class="ide-container">
+          <!-- IDE Top Action Bar -->
+          <div class="ide-toolbar">
+            <div class="ide-toolbar-left">
+              <span class="ide-file-tab active">
+                <span style="color:#eab308;margin-right:4px;">🐍</span> script.py
+              </span>
+              <span class="ide-status-pill" id="ide-status">Ready (Press Shift+F or Autocomplete)</span>
+            </div>
+            <div class="ide-toolbar-right">
+              <button class="ide-btn ide-btn-secondary" id="ide-autocomplete-btn" title="Complete code at cursor with local LLM (Shift+F)">
+                ⚡ Autocomplete (Shift+F)
+              </button>
+              <button class="ide-btn ide-btn-ask" id="ide-ask-model-btn" title="Send selected code to Lumina Chat to explain, debug, or refactor">
+                💬 Ask Model About Selection
+              </button>
+              <button class="ide-btn ide-btn-primary" id="ide-run-btn" title="Execute Python script in isolated subprocess">
+                ▶ Run Code
+              </button>
+            </div>
+          </div>
+
+          <!-- IDE Workspace: Editor + Side Inspection Panel -->
+          <div class="ide-main-split">
+            <!-- Code Editor Area -->
+            <div class="ide-editor-area">
+              <div class="ide-line-numbers" id="ide-line-numbers">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10</div>
+              <textarea class="ide-code-textarea" id="ide-code-editor" spellcheck="false" placeholder="# Write Python code here...
+def analyze_data(values):
+    total = sum(values)
+    avg = total / len(values) if values else 0
+    return {'total': total, 'average': avg}
+
+# Highlight any lines and click 'Ask Model About Selection' to query Lumina!
+data = [12, 45, 78, 23, 56, 89]
+result = analyze_data(data)
+print('Analysis:', result)
+"></textarea>
+            </div>
+
+            <!-- Terminal / Execution Output Panel -->
+            <div class="ide-output-panel">
+              <div class="ide-output-header">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <span class="pulse-dot" style="background:#10b981;"></span>
+                  <span>Console & Output</span>
+                </div>
+                <button class="ide-clear-btn" id="ide-clear-output-btn">Clear</button>
+              </div>
+              <pre class="ide-output-body" id="ide-output-body">// Ready. Write code and press ▶ Run Code, or select code and click 'Ask Model About Selection'.</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. KNOWLEDGE & RAG VIEW -->
+      <section class="workspace-view" id="view-library">
+        <div class="view-header">
+          <h2>Knowledge Library & Vector Store</h2>
+          <p>Manage documents, text embeddings, and Chroma DB semantic retrieval.</p>
+        </div>
+
+        <div class="view-grid">
+          <div class="view-card">
+            <h3>Ingest Document into Chroma DB</h3>
+            <p class="card-subtitle">Add text or documents to enable semantic vector retrieval in RAG mode.</p>
+            <div class="ingest-form">
+              <input type="text" id="ingest-title" class="form-input" placeholder="Document title / filename (e.g. notes.txt)">
+              <textarea id="ingest-content" class="form-textarea" rows="6" placeholder="Paste document text or knowledge content here..."></textarea>
+              <button class="btn-primary" id="btn-ingest">
+                <span>➕</span> Ingest into Vector Store
+              </button>
+              <div class="ingest-feedback" id="ingest-feedback"></div>
+            </div>
+          </div>
+
+          <div class="view-card">
+            <h3>Vector Store Status</h3>
+            <div class="rag-info-box">
+              <div class="info-row">
+                <span>Vector Database:</span>
+                <strong>Chroma DB</strong>
+              </div>
+              <div class="info-row">
+                <span>Embedding Model:</span>
+                <strong>all-MiniLM-L6-v2</strong>
+              </div>
+              <div class="info-row">
+                <span>Storage Path:</span>
+                <code>chroma_db/</code>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. AGENT & TOOLS VIEW -->
+      <section class="workspace-view" id="view-tools">
+        <div class="view-header">
+          <h2>Agentic Tool Execution Subsystem</h2>
+          <p>Autonomous tools executable in isolated Python subprocesses.</p>
+        </div>
+
+        <div class="view-grid">
+          <!-- Create Custom Tool Card -->
+          <div class="view-card full-width">
+            <h3>Create Custom Agent Tool</h3>
+            <p class="card-subtitle">Define your own Python tool script. Lumina's autonomous agent will automatically discover and execute it during tasks.</p>
+            <div class="ingest-form" style="gap:10px;">
+              <div style="display:flex;gap:12px;">
+                <input type="text" id="tool-name-input" class="form-input" style="flex:1;" placeholder="Tool name (e.g. search_arxiv or calculate_tax)">
+                <input type="text" id="tool-desc-input" class="form-input" style="flex:2;" placeholder="Description for Agent (e.g. Searches arXiv papers and returns abstracts)">
+              </div>
+              <textarea id="tool-code-input" class="form-textarea" rows="6" style="font-family:'SF Mono', monospace;" placeholder="import sys
+
+def main(arg):
+    # Your custom Python code here
+    print(f'Processed: {arg}')
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        main(sys.argv[1])
+"></textarea>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <button class="btn-primary" id="btn-save-custom-tool">
+                  <span>➕</span> Register Custom Tool
+                </button>
+                <span id="tool-create-feedback" style="font-size:12px;"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Existing Tools Card -->
+          <div class="view-card full-width">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+              <h3>Available System Tools (Tools/)</h3>
+              <button class="btn-primary-sm" id="btn-refresh-tools">⟳ Refresh Tools</button>
+            </div>
+            <div class="tools-grid" id="tools-grid">
+              <div class="list-placeholder">Loading tools...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. SETTINGS VIEW -->
+      <section class="workspace-view" id="view-settings">
+        <div class="view-header">
+          <h2>Settings & Configuration</h2>
+          <p>Customize model endpoints, generation parameters, and appearance.</p>
+        </div>
+
+        <div class="view-card narrow">
+          <div class="form-group">
+            <label>Model API Endpoint Base URL</label>
+            <input type="text" id="setting-base-url" class="form-input" value="http://127.0.0.1:54993/v1">
+            <span class="form-hint">Points to local llamafile or OpenAI-compatible endpoint.</span>
+          </div>
+
+          <div class="form-group">
+            <label>Temperature (Creativity: 0.0 - 1.0)</label>
+            <input type="range" id="setting-temp" min="0" max="1" step="0.05" value="0.7">
+            <div class="range-val" id="temp-val-display">0.7</div>
+          </div>
+
+          <div class="form-group">
+            <label>Max Tokens</label>
+            <input type="number" id="setting-max-tokens" class="form-input" value="2048">
+          </div>
+
+          <div class="form-group">
+            <button class="btn-primary" id="btn-save-settings">Save Preferences</button>
+            <span class="save-status" id="save-settings-status"></span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

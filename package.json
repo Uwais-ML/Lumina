@@ -1,0 +1,110 @@
+{
+  "name": "lumina",
+  "version": "1.0.0",
+  "description": "Lumina Desktop AI — Production Enterprise AI Application with Streaming RAG and Autonomous Agent",
+  "main": "src/main/index.js",
+  "author": "Lumina AI Team",
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "marked": "^12.0.2"
+  },
+  "devDependencies": {
+    "electron": "^30.0.9",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "ai.lumina.desktop",
+    "productName": "Lumina",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "app/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg"
+      ],
+      "icon": "assest/Lumina.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "extraResources": [
+        {
+          "from": "python-dependencies/macos-intel",
+          "to": "python-runtime",
+          "filter": ["**/*"]
+        },
+        {
+          "from": "models",
+          "to": "models",
+          "filter": ["*.gguf"]
+        },
+        {
+          "from": "Tools",
+          "to": "Tools",
+          "filter": ["*.py"]
+        },
+        {
+          "from": "scripts",
+          "to": "scripts",
+          "filter": ["*.py"]
+        },
+        {
+          "from": "resources",
+          "to": "resources",
+          "filter": ["**/*"]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assest/Lumina.png",
+      "extraResources": [
+        {
+          "from": "python-dependencies/windows",
+          "to": "python-runtime",
+          "filter": ["**/*"]
+        },
+        {
+          "from": "models",
+          "to": "models",
+          "filter": ["*.gguf"]
+        },
+        {
+          "from": "Tools",
+          "to": "Tools",
+          "filter": ["*.py"]
+        },
+        {
+          "from": "scripts",
+          "to": "scripts",
+          "filter": ["*.py"]
+        },
+        {
+          "from": "resources",
+          "to": "resources",
+          "filter": ["**/*"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

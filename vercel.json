@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "name": "lumina-desktop-ai",
+  "builds": [
+    {
+      "src": "website/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/website/$1"
+    }
+  ]
+}
