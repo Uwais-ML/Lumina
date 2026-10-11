@@ -1,0 +1,3 @@
+# Lumina macOS Dependencies
+# Includes base dependencies for macOS (darwin-x64 and darwin-arm64)
+-r base.txt

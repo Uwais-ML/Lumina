@@ -1,0 +1,6 @@
+# Lumina Windows Dependencies
+# Includes base dependencies plus Windows-specific platform packages
+-r base.txt
+
+# Windows process & native integration
+colorama>=0.4.6

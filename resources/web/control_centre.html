@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lumina — Control Centre</title>
+<style>
+/* ── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  --bg:          #060810;
+  --surface:     rgba(12,16,28,0.9);
+  --surface2:    rgba(18,24,42,0.85);
+  --border:      rgba(255,255,255,0.07);
+  --border-hi:   rgba(99,102,241,0.35);
+  --indigo:      #6366f1;
+  --violet:      #8b5cf6;
+  --cyan:        #06b6d4;
+  --emerald:     #10b981;
+  --amber:       #f59e0b;
+  --rose:        #f43f5e;
+  --text:        #e8eaf0;
+  --muted:       #64748b;
+  --dim:         #374151;
+  --r-lg:        18px;
+  --r-md:        12px;
+  --r-sm:        8px;
+  --glow-i:      rgba(99,102,241,0.15);
+  --glow-c:      rgba(6,182,212,0.12);
+  --glow-e:      rgba(16,185,129,0.15);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { color-scheme: dark; }
+
+body {
+  font-family: -apple-system, 'SF Pro Display', 'Inter', BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 52px 1fr;
+  grid-template-columns: 220px 1fr;
+}
+
+/* ── Animated background ─────────────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: -1;
+  background:
+    radial-gradient(ellipse 60% 50% at 10% 10%,  rgba(99,102,241,0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 90% 80%,  rgba(139,92,246,0.08) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 60% at 50% 50%,  rgba(6,182,212,0.05)  0%, transparent 70%);
+  animation: bgshift 12s ease-in-out infinite alternate;
+}
+@keyframes bgshift {
+  from { opacity: 1; }
+  to   { opacity: 0.7; filter: hue-rotate(15deg); }
+}
+
+/* ── Scanline grid overlay ───────────────────────────────────────────────── */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: -1;
+  background-image:
+    linear-gradient(rgba(99,102,241,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99,102,241,0.015) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+/* ── Topbar ──────────────────────────────────────────────────────────────── */
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(6,8,16,0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 10;
+}
+
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+}
+.brand-mark {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, var(--indigo), var(--violet));
+  border-radius: 8px;
+  display: grid; place-items: center;
+  font-size: 14px;
+  box-shadow: 0 0 16px rgba(99,102,241,0.4);
+  animation: brandpulse 3s ease-in-out infinite;
+}
+@keyframes brandpulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(99,102,241,0.4); }
+  50%       { box-shadow: 0 0 28px rgba(99,102,241,0.7); }
+}
+.brand-name {
+  font-size: 15px; font-weight: 700; letter-spacing: -0.02em;
+  background: linear-gradient(90deg, #fff 40%, #a5b4fc);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+
+.topbar-spacer { flex: 1; }
+
+/* Live model pill in topbar */
+.active-pill {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-size: 11px; font-weight: 500; color: var(--muted);
+  transition: all 0.3s;
+}
+.active-pill.alive {
+  border-color: rgba(16,185,129,0.4);
+  color: var(--emerald);
+}
+.pulse-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--dim);
+  flex-shrink: 0;
+}
+.active-pill.alive .pulse-dot {
+  background: var(--emerald);
+  box-shadow: 0 0 0 0 rgba(16,185,129,0.5);
+  animation: livepulse 1.8s ease-out infinite;
+}
+@keyframes livepulse {
+  0%   { box-shadow: 0 0 0 0   rgba(16,185,129,0.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(16,185,129,0); }
+  100% { box-shadow: 0 0 0 0   rgba(16,185,129,0); }
+}
+
+/* T/s badge */
+.tps-badge {
+  font-family: 'SF Mono', 'JetBrains Mono', monospace;
+  font-size: 10px; font-weight: 600;
+  padding: 2px 8px;
+  background: rgba(6,182,212,0.12);
+  border: 1px solid rgba(6,182,212,0.2);
+  border-radius: 100px;
+  color: var(--cyan);
+  letter-spacing: 0.03em;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar {
+  background: rgba(8,11,22,0.7);
+  border-right: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow-y: auto;
+  padding: 12px 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+
+.sidebar-section {
+  padding: 16px 16px 6px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted);
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+  user-select: none;
+}
+.nav-item:hover { background: rgba(255,255,255,0.04); }
+.nav-item.active {
+  background: rgba(99,102,241,0.12);
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute; left: 0; top: 4px; bottom: 4px;
+  width: 3px; border-radius: 0 2px 2px 0;
+  background: var(--indigo);
+  box-shadow: 0 0 10px rgba(99,102,241,0.6);
+}
+.nav-icon {
+  font-size: 15px; flex-shrink: 0;
+  width: 20px; text-align: center;
+}
+.nav-label {
+  font-size: 13px; font-weight: 500; color: var(--text);
+}
+.nav-item:not(.active) .nav-label { color: var(--muted); }
+.nav-item.active .nav-label { color: var(--text); }
+
+/* ── Main content ────────────────────────────────────────────────────────── */
+.main {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  overflow: hidden;
+}
+
+/* ── Panel area ──────────────────────────────────────────────────────────── */
+.panels { overflow: hidden; position: relative; }
+
+.panel {
+  display: none;
+  height: 100%;
+  overflow-y: auto;
+  padding: 24px;
+  animation: fadein 0.2s ease;
+}
+.panel.active { display: block; }
+.panel::-webkit-scrollbar { width: 5px; }
+.panel::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 3px; }
+
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.panel-header {
+  margin-bottom: 24px;
+}
+.panel-header h2 {
+  font-size: 22px; font-weight: 700; letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #fff 40%, #c4b5fd);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 4px;
+}
+.panel-header p {
+  font-size: 13px; color: var(--muted);
+}
+
+/* ── Card ────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 0.2s;
+}
+.card:hover { border-color: var(--border-hi); }
+
+.card-title {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--muted); margin-bottom: 14px;
+}
+
+/* ── Form fields ─────────────────────────────────────────────────────────── */
+.field-row {
+  display: grid; grid-template-columns: 140px 1fr;
+  align-items: center; gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.field-row:last-child { border-bottom: none; }
+
+.field-label {
+  font-size: 12px; color: var(--muted); font-weight: 500;
+}
+
+.field-input, .field-select {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 10px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.field-input:focus, .field-select:focus {
+  border-color: rgba(99,102,241,0.5);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+.field-select option { background: #0d1020; }
+
+.field-check {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--muted); cursor: pointer;
+}
+.field-check input[type=checkbox] {
+  width: 14px; height: 14px; accent-color: var(--indigo); cursor: pointer;
+}
+
+/* ── Grid for quick-launch panels ───────────────────────────────────────── */
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+/* ── Console ─────────────────────────────────────────────────────────────── */
+.console-wrap {
+  border-top: 1px solid var(--border);
+  background: rgba(4,6,14,0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.console-topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.console-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted);
+  flex: 1;
+}
+.console-status {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+  padding: 2px 8px; border-radius: 100px;
+  background: rgba(100,116,139,0.15);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  transition: all 0.3s;
+}
+.console-status.running {
+  background: rgba(245,158,11,0.12); color: var(--amber);
+  border-color: rgba(245,158,11,0.3);
+  animation: statusblink 1.2s ease-in-out infinite;
+}
+.console-status.done   { background: rgba(16,185,129,0.12); color: var(--emerald); border-color: rgba(16,185,129,0.3); }
+.console-status.error  { background: rgba(244,63,94,0.12);  color: var(--rose);    border-color: rgba(244,63,94,0.3); }
+@keyframes statusblink {
+  0%, 100% { opacity: 1; } 50% { opacity: 0.65; }
+}
+
+.console-output {
+  height: 180px;
+  overflow-y: auto;
+  padding: 10px 16px;
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11.5px; line-height: 1.6;
+}
+.console-output::-webkit-scrollbar { width: 4px; }
+.console-output::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+
+.console-output .line-ok   { color: var(--emerald); }
+.console-output .line-err  { color: var(--rose); }
+.console-output .line-warn { color: var(--amber); }
+.console-output .line-info { color: var(--cyan); }
+.console-output .line-dim  { color: var(--muted); }
+.console-output .line-norm { color: #9ba8c0; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn-row {
+  display: flex; gap: 8px; align-items: center;
+  padding: 8px 16px 10px;
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 16px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  font-size: 12px; font-weight: 600; font-family: inherit;
+  cursor: pointer; outline: none;
+  transition: all 0.15s;
+  letter-spacing: 0.02em;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--indigo);
+  border-color: rgba(99,102,241,0.6);
+  color: #fff;
+  box-shadow: 0 0 0 0 rgba(99,102,241,0.4);
+}
+.btn-primary:hover:not(:disabled) {
+  background: #7274f3;
+  box-shadow: 0 0 16px rgba(99,102,241,0.4);
+}
+
+.btn-danger {
+  background: rgba(244,63,94,0.12);
+  border-color: rgba(244,63,94,0.3);
+  color: var(--rose);
+}
+.btn-danger:hover:not(:disabled) { background: rgba(244,63,94,0.22); }
+
+.btn-ghost {
+  background: rgba(255,255,255,0.05);
+  border-color: var(--border);
+  color: var(--muted);
+}
+.btn-ghost:hover { background: rgba(255,255,255,0.09); color: var(--text); }
+
+/* ── Active model card (status zone) ────────────────────────────────────── */
+.model-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.model-stat-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.model-stat-card.alive {
+  border-color: rgba(16,185,129,0.25);
+}
+.model-stat-card.alive::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(16,185,129,0.06) 0%, transparent 60%);
+}
+.stat-name {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+}
+.stat-value {
+  font-size: 18px; font-weight: 700; letter-spacing: -0.02em;
+  font-family: 'SF Mono', monospace;
+}
+.stat-value.green { color: var(--emerald); }
+.stat-value.cyan  { color: var(--cyan); }
+.stat-value.amber { color: var(--amber); }
+.stat-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* Idle placeholder */
+.idle-msg {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px dashed var(--dim);
+  border-radius: var(--r-md);
+  font-size: 12px; color: var(--muted);
+  margin-bottom: 20px;
+}
+
+/* ── Animated rings (eye-candy for status page) ──────────────────────────── */
+.ring-wrap {
+  display: flex; justify-content: center; align-items: center;
+  height: 120px; margin-bottom: 12px;
+  position: relative;
+}
+.ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid;
+  animation: ringpulse 3s ease-out infinite;
+}
+.ring:nth-child(1) { width:40px; height:40px; border-color: rgba(99,102,241,0.8); animation-delay:0s; }
+.ring:nth-child(2) { width:70px; height:70px; border-color: rgba(99,102,241,0.4); animation-delay:0.6s; }
+.ring:nth-child(3) { width:100px; height:100px; border-color: rgba(99,102,241,0.2); animation-delay:1.2s; }
+.ring-core {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--indigo), var(--violet));
+  box-shadow: 0 0 20px rgba(99,102,241,0.6);
+  z-index: 1;
+}
+@keyframes ringpulse {
+  0%   { transform: scale(1);   opacity: 1; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* ── Scrollable text field ───────────────────────────────────────────────── */
+.field-textarea {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 12px; font-family: 'SF Mono', monospace;
+  padding: 8px 10px;
+  width: 100%; resize: vertical; min-height: 72px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.field-textarea:focus {
+  border-color: rgba(99,102,241,0.5);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+
+/* ── Badge / chip ────────────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 100px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+}
+.chip-indigo { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); }
+.chip-cyan   { background: rgba(6,182,212,0.12);  color: var(--cyan);    border: 1px solid rgba(6,182,212,0.2); }
+.chip-emerald{ background: rgba(16,185,129,0.12); color: var(--emerald); border: 1px solid rgba(16,185,129,0.2); }
+.chip-amber  { background: rgba(245,158,11,0.12); color: var(--amber);   border: 1px solid rgba(245,158,11,0.2); }
+
+/* ── Divider ─────────────────────────────────────────────────────────────── */
+.divider {
+  height: 1px; background: var(--border);
+  margin: 16px 0;
+}
+
+/* ── Empty log placeholder ───────────────────────────────────────────────── */
+.console-empty {
+  height: 100%; display: flex; align-items: center; justify-content: center;
+  color: var(--dim); font-size: 11px; font-family: monospace;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ TOPBAR ═══════════════════════════════════════════════════════════ -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">✦</div>
+    <span class="brand-name">Lumina</span>
+    <span class="chip chip-indigo">Control Centre</span>
+  </div>
+  <div class="topbar-spacer"></div>
+
+  <div class="tps-badge" id="tps-badge">— T/s</div>
+
+  <div class="active-pill" id="active-pill">
+    <span class="pulse-dot"></span>
+    <span id="pill-text">No active model</span>
+  </div>
+</header>
+
+<!-- ═══ SIDEBAR ══════════════════════════════════════════════════════════ -->
+<nav class="sidebar">
+  <div class="sidebar-section">System</div>
+  <div class="nav-item active" data-panel="status" onclick="nav(this)">
+    <span class="nav-icon">◎</span>
+    <span class="nav-label">Status</span>
+  </div>
+
+  <div class="sidebar-section">Models</div>
+  <div class="nav-item" data-panel="launch" onclick="nav(this)">
+    <span class="nav-icon">🚀</span>
+    <span class="nav-label">Launch Model</span>
+  </div>
+  <div class="nav-item" data-panel="switch" onclick="nav(this)">
+    <span class="nav-icon">⚡</span>
+    <span class="nav-label">SmartSwitch</span>
+  </div>
+  <div class="nav-item" data-panel="bench" onclick="nav(this)">
+    <span class="nav-icon">📊</span>
+    <span class="nav-label">Benchmark</span>
+  </div>
+  <div class="nav-item" data-panel="assess" onclick="nav(this)">
+    <span class="nav-icon">🔬</span>
+    <span class="nav-label">System Assess</span>
+  </div>
+
+  <div class="sidebar-section">Intelligence</div>
+  <div class="nav-item" data-panel="rag" onclick="nav(this)">
+    <span class="nav-icon">📄</span>
+    <span class="nav-label">RAG Pipeline</span>
+  </div>
+  <div class="nav-item" data-panel="agentic" onclick="nav(this)">
+    <span class="nav-icon">🤖</span>
+    <span class="nav-label">Agentic AI</span>
+  </div>
+  <div class="nav-item" data-panel="embed" onclick="nav(this)">
+    <span class="nav-icon">🧠</span>
+    <span class="nav-label">Embed Context</span>
+  </div>
+
+  <div class="sidebar-section">Tooling</div>
+  <div class="nav-item" data-panel="test" onclick="nav(this)">
+    <span class="nav-icon">🧪</span>
+    <span class="nav-label">Test Suite</span>
+  </div>
+  <div class="nav-item" data-panel="download" onclick="nav(this)">
+    <span class="nav-icon">⬇</span>
+    <span class="nav-label">Download Model</span>
+  </div>
+  <div class="nav-item" data-panel="setup" onclick="nav(this)">
+    <span class="nav-icon">📦</span>
+    <span class="nav-label">Setup</span>
+  </div>
+  <div class="nav-item" data-panel="deps" onclick="nav(this)">
+    <span class="nav-icon">📋</span>
+    <span class="nav-label">Dependencies</span>
+  </div>
+  <div class="nav-item" data-panel="install" onclick="nav(this)">
+    <span class="nav-icon">📥</span>
+    <span class="nav-label">Install Package</span>
+  </div>
+</nav>
+
+<!-- ═══ MAIN ══════════════════════════════════════════════════════════════ -->
+<main class="main">
+  <div class="panels">
+
+    <!-- ── STATUS ─────────────────────────────────────────────────────── -->
+    <section class="panel active" id="panel-status">
+      <div class="panel-header">
+        <h2>System Status</h2>
+        <p>Live view of running models and hardware metrics</p>
+      </div>
+
+      <div class="ring-wrap" id="ring-wrap">
+        <div class="ring"></div><div class="ring"></div><div class="ring"></div>
+        <div class="ring-core"></div>
+      </div>
+
+      <div id="status-content">
+        <div class="idle-msg">
+          <span>◌</span> No model is currently active. Launch a model to see live metrics.
+        </div>
+      </div>
+    </section>
+
+    <!-- ── LAUNCH ─────────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-launch">
+      <div class="panel-header">
+        <h2>Launch Model</h2>
+        <p>Start a local GGUF model via the llamafile server</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Model</div>
+        <div class="field-row">
+          <label class="field-label">GGUF Model</label>
+          <select class="field-select" id="launch-model"></select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Server</div>
+        <div class="field-row">
+          <label class="field-label">Port (0 = auto)</label>
+          <input class="field-input" type="number" id="launch-port" value="0" min="0" max="65535">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Host</label>
+          <input class="field-input" type="text" id="launch-host" value="127.0.0.1">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Timeouts</div>
+        <div class="field-row">
+          <label class="field-label">Startup timeout (s)</label>
+          <input class="field-input" type="number" id="launch-timeout" value="30">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Max port attempts</label>
+          <input class="field-input" type="number" id="launch-attempts" value="5">
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SWITCH ─────────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-switch">
+      <div class="panel-header">
+        <h2>SmartSwitch</h2>
+        <p>RAM/VRAM watchdog — auto-swaps a degraded model with a lightweight fallback</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Fallback Model</div>
+        <div class="field-row">
+          <label class="field-label">Fallback model</label>
+          <select class="field-select" id="sw-model"></select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Memory Thresholds</div>
+        <div class="field-row">
+          <label class="field-label">RAM allowance (0–1)</label>
+          <input class="field-input" type="number" id="sw-allow" value="0.25" step="0.05" min="0" max="1">
+        </div>
+        <div class="field-row">
+          <label class="field-label">VRAM delta (MB)</label>
+          <input class="field-input" type="number" id="sw-vram" value="300" step="50">
+        </div>
+        <div class="field-row">
+          <label class="field-label">GPU index</label>
+          <input class="field-input" type="number" id="sw-gpu" value="0" min="0">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Performance Thresholds</div>
+        <div class="field-row">
+          <label class="field-label">TPS threshold (0–1)</label>
+          <input class="field-input" type="number" id="sw-tps" value="0.75" step="0.05" min="0.1" max="1">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Min TPS samples</label>
+          <input class="field-input" type="number" id="sw-mintps" value="2" min="1">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Timing</div>
+        <div class="field-row">
+          <label class="field-label">Check interval (s)</label>
+          <input class="field-input" type="number" id="sw-interval" value="2.0" step="0.5">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Kill timeout (s)</label>
+          <input class="field-input" type="number" id="sw-killtout" value="3.0" step="0.5">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Settle time (s)</label>
+          <input class="field-input" type="number" id="sw-settle" value="3.0" step="0.5">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Grace period (s)</label>
+          <input class="field-input" type="number" id="sw-grace" value="10" step="5">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Flags</div>
+        <div class="field-row">
+          <label class="field-label">Log level</label>
+          <select class="field-select" id="sw-loglevel">
+            <option>INFO</option><option>DEBUG</option><option>WARNING</option><option>ERROR</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label class="field-label">Options</label>
+          <div style="display:flex;gap:16px;">
+            <label class="field-check"><input type="checkbox" id="sw-novram"> No VRAM</label>
+            <label class="field-check"><input type="checkbox" id="sw-noreplay"> No auto-replay</label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── RAG ────────────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-rag">
+      <div class="panel-header">
+        <h2>RAG Pipeline</h2>
+        <p>Load a document into a vector store and answer questions with an LLM</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Document</div>
+        <div class="field-row">
+          <label class="field-label">Document path</label>
+          <input class="field-input" type="text" id="rag-file" placeholder="/path/to/document.txt">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Port (0 = auto)</label>
+          <input class="field-input" type="number" id="rag-port" value="0">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Chunking</div>
+        <div class="field-row">
+          <label class="field-label">Chunk size (tokens)</label>
+          <input class="field-input" type="number" id="rag-chunk" value="500" step="50">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Overlap (tokens)</label>
+          <input class="field-input" type="number" id="rag-overlap" value="50" step="10">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Top-K chunks</label>
+          <input class="field-input" type="number" id="rag-k" value="3" min="1">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Search type</label>
+          <select class="field-select" id="rag-stype">
+            <option>similarity</option><option>mmr</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Storage & Session</div>
+        <div class="field-row">
+          <label class="field-label">Vector DB dir</label>
+          <input class="field-input" type="text" id="rag-dbdir" value="./chroma_db">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Max turns</label>
+          <input class="field-input" type="number" id="rag-turns" value="10" min="1">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Options</label>
+          <div style="display:flex;gap:16px;">
+            <label class="field-check"><input type="checkbox" id="rag-ctx"> Context persistence</label>
+            <label class="field-check"><input type="checkbox" id="rag-rebuild"> Force rebuild</label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── AGENTIC ────────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-agentic">
+      <div class="panel-header">
+        <h2>Agentic AI</h2>
+        <p>Autonomous agent that chains tools to complete complex tasks</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Query / Task</div>
+        <textarea class="field-textarea" id="ag-query" rows="4" placeholder="Describe the task for the agent to execute…"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Model</div>
+        <div class="field-row">
+          <label class="field-label">Port</label>
+          <input class="field-input" type="number" id="ag-port" value="54993">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Model name</label>
+          <input class="field-input" type="text" id="ag-model" value="qwen">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Generation</div>
+        <div class="field-row">
+          <label class="field-label">Temperature</label>
+          <input class="field-input" type="number" id="ag-temp" value="0.2" step="0.05" min="0" max="1">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Max tokens</label>
+          <input class="field-input" type="number" id="ag-maxtok" value="256" step="64">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Max iterations</label>
+          <input class="field-input" type="number" id="ag-iters" value="5" min="1">
+        </div>
+        <div class="field-row">
+          <label class="field-label">Log level</label>
+          <select class="field-select" id="ag-loglvl">
+            <option>INFO</option><option>DEBUG</option><option>WARNING</option><option>ERROR</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label class="field-label">Verbose</label>
+          <label class="field-check"><input type="checkbox" id="ag-verbose"> Verbose output</label>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── TEST ───────────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-test">
+      <div class="panel-header">
+        <h2>Test Suite</h2>
+        <p>Run automated speed, router, and failover latency tests</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Suite Selection</div>
+        <div class="field-row">
+          <label class="field-label">Target suite</label>
+          <select class="field-select" id="test-suite">
+            <option value="all">all — full test suite</option>
+            <option value="bench">bench — Assesser vs Actual T/s</option>
+            <option value="router">router — Intent Router</option>
+            <option value="stress">stress — SmartSwitch Failover</option>
+          </select>
+        </div>
+        <p style="margin-top:12px;font-size:12px;color:var(--muted);">
+          Output will be written to <code style="color:var(--cyan)">logs/benchmark_report.md</code> and <code style="color:var(--cyan)">logs/benchmark_report.json</code>.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── INSTALL ────────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-install">
+      <div class="panel-header">
+        <h2>Install Package</h2>
+        <p>Install Python packages into the bundled environment</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Package</div>
+        <div class="field-row">
+          <label class="field-label">Package name(s)</label>
+          <input class="field-input" type="text" id="install-pkg" placeholder="e.g. numpy pandas requests">
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SIMPLE PANELS ─────────────────────────────────────────────── -->
+    <section class="panel" id="panel-bench">
+      <div class="panel-header"><h2>Benchmark</h2><p>Run hardware benchmark across local LLM models</p></div>
+      <div class="card"><p style="color:var(--muted);font-size:13px;">No extra arguments needed. Press <strong style="color:var(--text)">▶ Run</strong> to execute.</p></div>
+    </section>
+    <section class="panel" id="panel-assess">
+      <div class="panel-header"><h2>System Assess</h2><p>Estimate bandwidth and tokens/sec for target models</p></div>
+      <div class="card"><p style="color:var(--muted);font-size:13px;">No extra arguments needed. Press <strong style="color:var(--text)">▶ Run</strong> to execute.</p></div>
+    </section>
+    <section class="panel" id="panel-download">
+      <div class="panel-header"><h2>Download Model</h2><p>Download a custom model from HuggingFace</p></div>
+      <div class="card"><p style="color:var(--muted);font-size:13px;">No extra arguments needed. Press <strong style="color:var(--text)">▶ Run</strong> to execute.</p></div>
+    </section>
+    <section class="panel" id="panel-setup">
+      <div class="panel-header"><h2>Setup</h2><p>Download all base GGUF models</p></div>
+      <div class="card"><p style="color:var(--muted);font-size:13px;">No extra arguments needed. Press <strong style="color:var(--text)">▶ Run</strong> to execute.</p></div>
+    </section>
+    <section class="panel" id="panel-embed">
+      <div class="panel-header"><h2>Embed Context</h2><p>Embed stored conversation context into vector store</p></div>
+      <div class="card"><p style="color:var(--muted);font-size:13px;">No extra arguments needed. Press <strong style="color:var(--text)">▶ Run</strong> to execute.</p></div>
+    </section>
+    <section class="panel" id="panel-deps">
+      <div class="panel-header"><h2>Dependencies</h2><p>Install all required Python dependencies into the bundled env</p></div>
+      <div class="card"><p style="color:var(--muted);font-size:13px;">No extra arguments needed. Press <strong style="color:var(--text)">▶ Run</strong> to execute.</p></div>
+    </section>
+
+  </div><!-- /panels -->
+
+  <!-- ═══ CONSOLE ════════════════════════════════════════════════════════ -->
+  <div class="console-wrap">
+    <div class="console-topbar">
+      <span class="console-label">Output</span>
+      <span class="console-status" id="job-status">IDLE</span>
+      <button class="btn btn-primary" id="btn-run" onclick="runCmd()">▶ Run</button>
+      <button class="btn btn-danger"  id="btn-stop" onclick="stopCmd()" disabled>■ Stop</button>
+      <button class="btn btn-ghost"   onclick="clearConsole()">⌫ Clear</button>
+    </div>
+    <div class="console-output" id="console-out">
+      <div class="console-empty">// select a command and press ▶ Run</div>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ── State ──────────────────────────────────────────────────────────────── */
+let currentPanel  = 'status';
+let currentJobId  = null;
+let pollInterval  = null;
+let pollOffset    = 0;
+let statusInterval= null;
+
+/* ── Navigation ─────────────────────────────────────────────────────────── */
+function nav(el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  currentPanel = el.dataset.panel;
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + currentPanel).classList.add('active');
+}
+
+/* ── Model list ─────────────────────────────────────────────────────────── */
+async function loadModels() {
+  try {
+    const r = await fetch('/api/models');
+    const d = await r.json();
+    ['launch-model','sw-model'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = d.models.map(m => `<option value="${m}">${m}</option>`).join('');
+    });
+  } catch(e) {}
+}
+
+/* ── Status polling ─────────────────────────────────────────────────────── */
+async function pollStatus() {
+  try {
+    const r  = await fetch('/api/status');
+    const st = await r.json();
+    renderStatus(st);
+  } catch(e) {
+    renderStatus({});
+  }
+}
+
+function renderStatus(st) {
+  const pill    = document.getElementById('active-pill');
+  const pillTxt = document.getElementById('pill-text');
+  const tpsBadge= document.getElementById('tps-badge');
+  const content = document.getElementById('status-content');
+
+  const models = Object.entries(st);
+  if (models.length === 0) {
+    pill.className = 'active-pill';
+    pillTxt.textContent = 'No active model';
+    tpsBadge.textContent = '— T/s';
+    content.innerHTML = `<div class="idle-msg"><span>◌</span> No model is currently active. Launch a model to see live metrics.</div>`;
+    return;
+  }
+
+  pill.className = 'active-pill alive';
+  const names = models.map(([k]) => k.replace(/_/g,' '));
+  pillTxt.textContent = names.join(' · ');
+
+  const allTps = models.flatMap(([,v]) => {
+    const t = parseFloat(v['T/s'] ?? v.tps ?? 0);
+    return isNaN(t) ? [] : [t];
+  });
+  const avgTps = allTps.length ? (allTps.reduce((a,b)=>a+b,0)/allTps.length).toFixed(1) : '—';
+  tpsBadge.textContent = `${avgTps} T/s`;
+
+  content.innerHTML = `<div class="model-status-grid">${models.map(([name,v])=>modelCard(name,v)).join('')}</div>`;
+}
+
+function modelCard(name, v) {
+  const pid  = v.PID  ?? v.pid  ?? '—';
+  const port = v.PORT ?? v.port ?? '—';
+  const ram  = v.RAM  ?? v.ram  ?? '—';
+  const tps  = parseFloat(v['T/s'] ?? v.tps ?? 0);
+  const mode = v.MODE ?? v.mode ?? 'ram';
+  return `
+  <div class="model-stat-card alive">
+    <div class="stat-name">${name.replace(/_/g,' ')}</div>
+    <div class="stat-value green">${isNaN(tps)||tps===0 ? '—' : tps.toFixed(1)+' T/s'}</div>
+    <div class="stat-sub">PID ${pid} · Port ${port}</div>
+    <div class="stat-sub" style="margin-top:4px;">${ram} · <span class="chip chip-${mode==='gpu'?'cyan':'indigo'}">${mode.toUpperCase()}</span></div>
+  </div>`;
+}
+
+/* ── Build CLI args ─────────────────────────────────────────────────────── */
+function buildArgs() {
+  const p = currentPanel;
+  const g = id => document.getElementById(id);
+  const v = id => g(id)?.value?.trim() ?? '';
+  const c = id => g(id)?.checked ?? false;
+  const n = id => parseFloat(v(id));
+  const i = id => parseInt(v(id));
+
+  if (p === 'launch') {
+    const args = ['--launch'];
+    const m = v('launch-model'); if (m) args.push('--model', m);
+    const port = i('launch-port'); if (port > 0) args.push('--port', String(port));
+    const host = v('launch-host'); if (host !== '127.0.0.1') args.push('--host', host);
+    args.push('--startup-timeout', v('launch-timeout'), '--max-attempts', v('launch-attempts'));
+    return args;
+  }
+  if (p === 'switch') {
+    const args = ['--switch'];
+    const m = v('sw-model'); if (m) args.push('--base-model', m);
+    args.push(
+      '--ram-allowance',   v('sw-allow'),
+      '--interval',        v('sw-interval'),
+      '--tps-threshold',   v('sw-tps'),
+      '--min-tps-samples', v('sw-mintps'),
+      '--kill-timeout',    v('sw-killtout'),
+      '--vram-delta-mb',   v('sw-vram'),
+      '--gpu-index',       v('sw-gpu'),
+      '--settle-time',     v('sw-settle'),
+      '--grace-period',    v('sw-grace'),
+      '--log-level',       v('sw-loglevel'),
+    );
+    if (c('sw-novram'))   args.push('--no-vram');
+    if (c('sw-noreplay')) args.push('--no-auto-replay');
+    return args;
+  }
+  if (p === 'rag') {
+    const args = ['--rag'];
+    const f = v('rag-file'); if (f) args.push('--file', f);
+    const port = i('rag-port'); if (port > 0) args.push('--port', String(port));
+    args.push('--chunk-size', v('rag-chunk'), '--overlap', v('rag-overlap'),
+              '--k', v('rag-k'), '--search-type', v('rag-stype'),
+              '--max-turns', v('rag-turns'));
+    const db = v('rag-dbdir'); if (db && db !== './chroma_db') args.push('--db-dir', db);
+    if (c('rag-ctx'))     args.push('--context');
+    if (c('rag-rebuild')) args.push('--force-rebuild');
+    return args;
+  }
+  if (p === 'agentic') {
+    const q = v('ag-query'); if (!q) { alert('Please enter a task/query.'); return null; }
+    const args = ['--agentic', '--query', q,
+      '--port', v('ag-port'), '--model', v('ag-model'),
+      '--temperature', v('ag-temp'), '--max-tokens', v('ag-maxtok'),
+      '--iterations', v('ag-iters'), '--log-level', v('ag-loglvl'),
+    ];
+    if (c('ag-verbose')) args.push('--verbose');
+    return args;
+  }
+  if (p === 'test')     return ['--test', v('test-suite')];
+  if (p === 'install') {
+    const pkgs = v('install-pkg').split(/\s+/).filter(Boolean);
+    if (!pkgs.length) { alert('Enter package name(s).'); return null; }
+    return ['--install', ...pkgs];
+  }
+  if (p === 'bench')    return ['--bench'];
+  if (p === 'assess')   return ['--assess'];
+  if (p === 'download') return ['--download'];
+  if (p === 'setup')    return ['--setup'];
+  if (p === 'embed')    return ['--embed'];
+  if (p === 'deps')     return ['--dependencies'];
+  if (p === 'status')   return null;  // no command for status panel
+  return null;
+}
+
+/* ── Run / Stop ─────────────────────────────────────────────────────────── */
+async function runCmd() {
+  const args = buildArgs();
+  if (!args) return;
+
+  clearConsole();
+  pollOffset = 0;
+  setStatus('running');
+
+  try {
+    const r = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ args }),
+    });
+    const d = await r.json();
+    currentJobId = d.job_id;
+    appendLine(`▶  ${['Lumina.py', ...args].join(' ')}`, 'info');
+    startPolling();
+  } catch(e) {
+    appendLine(`[!] Failed to start: ${e}`, 'err');
+    setStatus('error');
+  }
+}
+
+async function stopCmd() {
+  if (!currentJobId) return;
+  try {
+    await fetch('/api/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: currentJobId }),
+    });
+    appendLine('\n■ Stop requested (SIGTERM)', 'warn');
+  } catch(e) {}
+  stopPolling();
+  setStatus('idle');
+}
+
+/* ── Output polling ─────────────────────────────────────────────────────── */
+function startPolling() {
+  document.getElementById('btn-run').disabled  = true;
+  document.getElementById('btn-stop').disabled = false;
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(fetchOutput, 400);
+}
+
+function stopPolling() {
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  document.getElementById('btn-run').disabled  = false;
+  document.getElementById('btn-stop').disabled = true;
+}
+
+async function fetchOutput() {
+  if (!currentJobId) return;
+  try {
+    const r = await fetch(`/api/job/${currentJobId}?since=${pollOffset}`);
+    const d = await r.json();
+
+    d.lines.forEach(line => appendLine(line, classifyLine(line)));
+    pollOffset = d.total;
+
+    if (d.status !== 'running') {
+      const sym = d.status === 'done' ? '✔' : '✘';
+      appendLine(`\n── Process exited (${sym} code ${d.exit_code ?? '?'}) ──`, d.status === 'done' ? 'ok' : 'err');
+      stopPolling();
+      setStatus(d.status === 'done' ? 'done' : 'error');
+    }
+  } catch(e) {}
+}
+
+/* ── Console helpers ────────────────────────────────────────────────────── */
+function classifyLine(line) {
+  const l = line.toLowerCase();
+  if (/error|\[!\]|failed|exception|traceback/.test(l)) return 'err';
+  if (/✔|✓|\[+\]|success|ready|listening/.test(l))     return 'ok';
+  if (/warning|warn|\[\*\]/.test(l))                    return 'warn';
+  if (/^\s*(▶|ℹ|info)/.test(l))                        return 'info';
+  if (/^\s*(#|\/\/)/.test(l))                           return 'dim';
+  return 'norm';
+}
+
+function appendLine(text, cls='norm') {
+  const out  = document.getElementById('console-out');
+  // Clear empty placeholder
+  const empty = out.querySelector('.console-empty');
+  if (empty) empty.remove();
+
+  const div = document.createElement('div');
+  div.className = 'line-' + cls;
+  div.textContent = text;
+  out.appendChild(div);
+  out.scrollTop = out.scrollHeight;
+}
+
+function clearConsole() {
+  document.getElementById('console-out').innerHTML =
+    '<div class="console-empty">// select a command and press ▶ Run</div>';
+  pollOffset = 0;
+}
+
+function setStatus(s) {
+  const el = document.getElementById('job-status');
+  el.className = 'console-status' + (s !== 'idle' ? ' ' + s : '');
+  el.textContent = { running:'RUNNING', done:'DONE', error:'ERROR', stopped:'STOPPED', idle:'IDLE' }[s] ?? s.toUpperCase();
+}
+
+/* ── Boot ───────────────────────────────────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', () => {
+  loadModels();
+  pollStatus();
+  statusInterval = setInterval(pollStatus, 3000);
+});
+</script>
+</body>
+</html>

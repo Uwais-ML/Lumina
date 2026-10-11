@@ -1,0 +1,21 @@
+#!/bin/bash
+# lumina-desktop - Development launcher for Lumina Electron Desktop Application
+# Starts the Electron app pointing at the Lumina project root.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PATH="$SCRIPT_DIR/.tools/bin:$PATH"
+
+echo "🔷 Launching Lumina Desktop (Development Mode)..."
+
+NODE=$(which node 2>/dev/null)
+NPM=$(which npm 2>/dev/null)
+ELECTRON=$(which electron 2>/dev/null || echo "$SCRIPT_DIR/node_modules/.bin/electron")
+
+if [ ! -f "$ELECTRON" ]; then
+  echo "📦 Installing npm dependencies first..."
+  $NPM install --prefer-offline
+  ELECTRON="$SCRIPT_DIR/node_modules/.bin/electron"
+fi
+
+echo "   Electron: $ELECTRON"
+exec "$ELECTRON" . "$@"
