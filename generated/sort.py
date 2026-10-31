@@ -1,0 +1,1 @@
+import random; print(sorted([3

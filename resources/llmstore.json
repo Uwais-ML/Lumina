@@ -141,23 +141,23 @@
     },
     {
         "id": 15,
-        "name": "bartowski/Phi-3.5-vision-instruct-GGUF",
-        "filename_pattern": "Phi-3.5-vision-instruct-Q4_K_M.gguf",
-        "link": "https://huggingface.co/bartowski/Phi-3.5-vision-instruct-GGUF/resolve/main/Phi-3.5-vision-instruct-Q4_K_M.gguf",
-        "quantization": "Q4 (Specifically Q4_K_M)",
-        "parameters": "4.2B",
-        "pros": "Vision capabilities in a small package. Excellent for visual understanding. Very efficient.",
-        "cons": "Smaller than typical vision models. Limited world knowledge. Requires specific formatting."
+        "name": "abetlen/Phi-3.5-vision-instruct-gguf",
+        "filename_pattern": "Phi-3.5-3.8B-vision-instruct-Q8_0.gguf",
+        "link": "https://huggingface.co/abetlen/Phi-3.5-vision-instruct-gguf/resolve/main/Phi-3.5-3.8B-vision-instruct-Q8_0.gguf",
+        "quantization": "Q8 (Specifically Q8_0)",
+        "parameters": "3.8B",
+        "pros": "Vision capabilities in a small package. Near-FP16 quality. Excellent visual reasoning.",
+        "cons": "Requires multi-modal projector for image inputs. Doubles VRAM requirements of Q4."
     },
     {
         "id": 16,
-        "name": "bartowski/Phi-3.5-vision-instruct-GGUF",
-        "filename_pattern": "Phi-3.5-vision-instruct-Q8_0.gguf",
-        "link": "https://huggingface.co/bartowski/Phi-3.5-vision-instruct-GGUF/resolve/main/Phi-3.5-vision-instruct-Q8_0.gguf",
-        "quantization": "Q8 (Specifically Q8_0)",
-        "parameters": "4.2B",
-        "pros": "Near-FP16 quality for vision tasks. Better image understanding. Improved accuracy.",
-        "cons": "Doubles VRAM requirements. Still limited world knowledge. Needs specific formatting."
+        "name": "abetlen/Phi-3.5-vision-instruct-gguf",
+        "filename_pattern": "Phi-3.5-3.8B-vision-instruct-F16.gguf",
+        "link": "https://huggingface.co/abetlen/Phi-3.5-vision-instruct-gguf/resolve/main/Phi-3.5-3.8B-vision-instruct-F16.gguf",
+        "quantization": "F16",
+        "parameters": "3.8B",
+        "pros": "Unquantized FP16 weights. Maximum accuracy for visual understanding and multimodal tasks.",
+        "cons": "Larger file size (~7.6 GB). Requires more memory."
     },
     {
         "id": 17,
@@ -318,5 +318,15 @@
         "parameters": "47B",
         "pros": "Near-original quality for Mixtral. Excellent reasoning and expert routing. Best accuracy.",
         "cons": "Requires very high-end GPU (24-32GB VRAM). Slow inference. High computational cost."
+    },
+    {
+        "id": 33,
+        "name": "bartowski/Hermes-3-Llama-3.2-3B-GGUF",
+        "filename_pattern": "Hermes-3-Llama-3.2-3B-Q4_K_M.gguf",
+        "link": "https://huggingface.co/bartowski/Hermes-3-Llama-3.2-3B-GGUF/resolve/main/Hermes-3-Llama-3.2-3B-Q4_K_M.gguf",
+        "quantization": "Q4 (Specifically Q4_K_M)",
+        "parameters": "3.2B",
+        "pros": "Fine-tuned specifically for agentic tool calling, function execution, and multi-turn reasoning. Best in class < 3.8B.",
+        "cons": "Requires proper XML/JSON tool prompt templates. Slower than 1B models on CPU."
     }
 ]

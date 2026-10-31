@@ -12,3 +12,8 @@ logs/
 
 # Local dependencies & environments
 python-dependencies/**/torch/
+python-dependencies/
+tectonic
+*.pdf
+*.docx
+lumina_smartswitch_research_paper.pdf

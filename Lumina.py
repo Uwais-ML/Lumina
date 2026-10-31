@@ -108,19 +108,21 @@ REQUIRED_PACKAGES = [
     "langchain-community==0.4.2",
     "langchain-text-splitters==1.1.2",
     "langchain-openai==1.5.1",
-    "langchain-core==1.5.5",
+    "langchain-core>=1.5.5,<2.0.0",
+    "langchain-huggingface>=1.0.0",   # required by rag.py: from langchain_huggingface import HuggingFaceEmbeddings
+    "langchain-chroma>=0.2.4",         # required by rag.py: from langchain_chroma import Chroma
     "chromadb==1.5.9",
     "sentence-transformers==5.7.0",
     "psutil==5.9.8",
     "pydantic==2.13.4",
     "requests==2.34.2",
-    "transformers==5.15.0",
-    "tokenizers==0.22.2",
+    "transformers==4.48.3",
+    "tokenizers==0.21.4",
     "onnxruntime==1.23.2",
-    "numpy==2.2.6",
+    "numpy==1.26.4",                  # pinned <2 to prevent PyTorch ABI mismatch
     "tqdm==4.70.0",
     "tiktoken==0.13.0",
-    "openai==3.1.0",
+    "openai==2.45.0",                  # fixed: langchain-openai==1.5.1 requires openai>=2.45.0
     "rich==15.0.0",
     "python-dotenv==1.2.2",
     "pyyaml==6.0.3",
@@ -571,8 +573,6 @@ def preflight(command, extra_args):
             lumina_log("Download needs a numeric catalog id.", tag="CLI", level="ERROR" if extra_args[:1] not in (["-h"], ["--help"]) else "INFO")
             print("  Example: ./lumina --download 1")
             print_store_ids()
-            if extra_args[:1] in (["-h"], ["--help"]):
-                return True
             return False
         if extra_args and extra_args[0] not in ("-h", "--help"):
             try:
@@ -874,6 +874,9 @@ def main():
     command = sys.argv[1]
     extra_args = sys.argv[2:]
     entry = COMMANDS[command]
+
+    if not preflight(command, extra_args):
+        sys.exit(1)
 
     if entry["type"] == "java":
         run_java(entry["target"], extra_args)

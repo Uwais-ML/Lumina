@@ -199,6 +199,92 @@ def safe_query(
 
 
 # ---------------------------------------------------------------------------
+# Lumina Speed Prediction Subsystem
+# ---------------------------------------------------------------------------
+
+MODEL_SPECS = {
+    "Qwen2.5-0.5B-Instruct-Q4_K_M": (0.5, 4.83),
+    "Llama-3.2-1B-Instruct-Q4_K_M": (1.0, 4.83),
+    "Qwen2.5-Coder-1.5B-Instruct-Q4_K_M": (1.5, 4.83),
+    "Phi-3.5-mini-instruct-Q4_K_M": (3.8, 4.83),
+    "Hermes-3-Llama-3.2-3B-Q4_K_M": (3.0, 4.83),
+}
+
+
+def get_hardware_bandwidth(default=23.41):
+    """Returns measured memory bandwidth (GB/s) assessed by Lumina SystemAssess."""
+    bw_file = os.path.join(PROJECT_ROOT, "resources", "bandwidth.txt")
+    if os.path.exists(bw_file):
+        try:
+            with open(bw_file, "r") as f:
+                val = float(f.read().strip())
+                if val > 0:
+                    return val
+        except Exception:
+            pass
+    return default
+
+
+def get_lumina_predicted_tps(model_name):
+    """
+    Predicts tokens/sec based on hardware memory bandwidth:
+    Predicted T/s = Bandwidth (GB/s) / (Params_B * Quant_bits / 8)
+    """
+    clean_name = model_name[:-5] if model_name.endswith(".gguf") else model_name
+    spec = MODEL_SPECS.get(clean_name)
+    if spec:
+        param_b, quant_bits = spec
+    else:
+        m = re.search(r"(\d+(\.\d+)?)B", clean_name, re.IGNORECASE)
+        param_b = float(m.group(1)) if m else 1.0
+        quant_bits = 4.83
+
+    bw = get_hardware_bandwidth()
+    size_gb = param_b * (quant_bits / 8.0)
+    if size_gb > 0:
+        return bw / size_gb
+    return None
+
+
+def calibrate_baseline_tps(raw_tps, model_name, tolerance=0.10):
+    """
+    Calibrates empirical baseline T/s against Lumina prediction with +-tolerance (default +-10%).
+    Returns (calibrated_baseline, predicted_tps, (lower_bound, upper_bound)).
+    """
+    pred_tps = get_lumina_predicted_tps(model_name)
+    if not pred_tps or pred_tps <= 0:
+        return (raw_tps, None, (None, None))
+
+    pred_tps = round(pred_tps, 2)
+    lower_bound = round((1.0 - tolerance) * pred_tps, 2)
+    upper_bound = round((1.0 + tolerance) * pred_tps, 2)
+
+    if raw_tps is None or raw_tps <= 0:
+        # Pre-execution prediction baseline
+        return (round(pred_tps, 2), round(pred_tps, 2), (lower_bound, upper_bound))
+
+    if raw_tps < lower_bound:
+        logging.warning(
+            f"⚠️ First run T/s for '{model_name}' ({raw_tps:.2f}) is below Lumina predicted range "
+            f"[{lower_bound:.2f} - {upper_bound:.2f} T/s] (-10% bound). "
+            f"Anchoring baseline to {lower_bound:.2f} T/s."
+        )
+        return (lower_bound, round(pred_tps, 2), (lower_bound, upper_bound))
+    elif raw_tps > upper_bound:
+        logging.info(
+            f"ℹ️ First run T/s for '{model_name}' ({raw_tps:.2f}) exceeds upper bound ({upper_bound:.2f} T/s). "
+            f"Capping baseline to {upper_bound:.2f} T/s to prevent false-positive degradation alerts."
+        )
+        return (upper_bound, round(pred_tps, 2), (lower_bound, upper_bound))
+    else:
+        logging.info(
+            f"✅ First run speed for '{model_name}' ({raw_tps:.2f} T/s) confirmed within Lumina predicted range "
+            f"[{lower_bound:.2f} - {upper_bound:.2f} T/s] (±10%)."
+        )
+        return (round(raw_tps, 2), round(pred_tps, 2), (lower_bound, upper_bound))
+
+
+# ---------------------------------------------------------------------------
 # GPU / VRAM helpers
 # ---------------------------------------------------------------------------
 
@@ -315,10 +401,10 @@ def savecontext(log_path):
     return None
 
 
-def wait_for_model_ready(pid, port=None, log_file=None, timeout=30.0, settle_time=3.0):
+def wait_for_model_ready(pid, port=None, log_file=None, timeout=30.0, settle_time=1.0, fast_mode=False):
     """
     Waits for a model process to finish loading weights and initialize server.
-    Monitors process existence, logs for readiness markers, and stabilizes RSS memory.
+    Optimized for high-speed failovers with low-latency polling and adaptive settling.
 
     Returns the stabilized peak RSS in bytes, or None if process exited.
     """
@@ -339,11 +425,24 @@ def wait_for_model_ready(pid, port=None, log_file=None, timeout=30.0, settle_tim
 
     start_time = time.time()
     is_ready = False
+    poll_interval = 0.02  # 20ms low-latency polling
 
-    # 1. Wait for server readiness marker up to timeout
+    # 1. Wait for server readiness marker or HTTP /health up to timeout
     while time.time() - start_time < timeout:
         if not psutil.pid_exists(pid) or not proc.is_running():
             return None
+
+        # Check HTTP /health if port is known
+        if port:
+            try:
+                import urllib.request
+                req = urllib.request.Request(f"http://127.0.0.1:{port}/health", method="GET")
+                with urllib.request.urlopen(req, timeout=0.08) as resp:
+                    if resp.status == 200:
+                        is_ready = True
+                        break
+            except Exception:
+                pass
 
         # Check log file if available
         if log_file and os.path.exists(log_file):
@@ -356,16 +455,18 @@ def wait_for_model_ready(pid, port=None, log_file=None, timeout=30.0, settle_tim
             except Exception:
                 pass
 
-        time.sleep(0.5)
+        time.sleep(poll_interval)
 
-    if is_ready:
-        logging.debug(f"Model process (PID: {pid}) signaled ready. Allowing {settle_time}s memory stabilization...")
-    else:
-        logging.debug(f"Readiness signal not found for PID {pid} after {timeout}s; proceeding with {settle_time}s memory stabilization...")
+    if fast_mode or settle_time <= 0.2:
+        try:
+            return proc.memory_info().rss
+        except Exception:
+            return None
 
-    # 2. Settle period to let RSS memory / mmap allocations stabilize
+    # 2. Adaptive settle period — detect when RSS slope stabilizes within 2%
     settle_start = time.time()
     peak_rss = 0
+    prev_rss = 0
     while time.time() - settle_start < settle_time:
         if not psutil.pid_exists(pid) or not proc.is_running():
             return None
@@ -373,9 +474,13 @@ def wait_for_model_ready(pid, port=None, log_file=None, timeout=30.0, settle_tim
             current_rss = proc.memory_info().rss
             if current_rss > peak_rss:
                 peak_rss = current_rss
+            if prev_rss > 0 and abs(current_rss - prev_rss) / prev_rss < 0.02 and (time.time() - settle_start > 0.3):
+                # Memory slope stabilized
+                break
+            prev_rss = current_rss
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return None
-        time.sleep(0.5)
+        time.sleep(0.08)
 
     return peak_rss
 
@@ -388,13 +493,14 @@ def raminitilization(
     vram_delta_mb=300,
     no_vram=False,
     gpu_index=0,
-    settle_time=3.0,
+    settle_time=1.0,
     init_timeout=30.0,
+    fast_mode=False,
 ):
     """
     Initializes and records model PID, port, baseline RAM or VRAM, log file
-    path, T/s, and tracking MODE ("ram" | "vram") in status.txt after allowing
-    the model to fully initialize and settle into memory.
+    path, predicted T/s, calibrated baseline T/s, and tracking MODE ("ram" | "vram")
+    in status.txt.
 
     Parameters
     ----------
@@ -407,6 +513,7 @@ def raminitilization(
     gpu_index     : int   — GPU device index for VRAM query
     settle_time   : float — Seconds to allow memory stabilization after ready signal
     init_timeout  : float — Max seconds to wait for model ready signal
+    fast_mode     : bool  — High-speed initialization during failovers
     """
     try:
         os.makedirs(DATA_DIR, exist_ok=True)
@@ -430,6 +537,7 @@ def raminitilization(
             log_file=log_file,
             timeout=init_timeout,
             settle_time=settle_time,
+            fast_mode=fast_mode,
         )
 
         if post_rss_bytes is None or not psutil.pid_exists(pid):
@@ -462,45 +570,45 @@ def raminitilization(
                 except json.JSONDecodeError:
                     status_data = {}
 
-        # Check if any initial non-zero T/s is already present in logs
+        # Parse initial T/s history if already present in logs
         initial_tps_list = [t for t in parse_eval_tokens_per_second(log_file) if t > 0.0]
-        initial_tps = round(initial_tps_list[-1], 2) if initial_tps_list else 0.0
-        baseline_tps = round(initial_tps_list[0], 2) if initial_tps_list else None
+        raw_initial_tps = round(initial_tps_list[-1], 2) if initial_tps_list else 0.0
+        raw_first_tps = round(initial_tps_list[0], 2) if initial_tps_list else None
+
+        # Ground baseline in Lumina prediction ± 10%
+        calibrated_baseline, pred_tps, bounds = calibrate_baseline_tps(raw_first_tps, key)
+
+        model_entry = {
+            "PID": int(pid),
+            "PORT": int(port) if port is not None else None,
+            "MODE": "vram" if use_vram else "ram",
+            "T/s": raw_initial_tps,
+            "PREDICTED_TPS": pred_tps,
+            "BASELINE_TPS": calibrated_baseline,
+            "TPS_RANGE": [bounds[0], bounds[1]] if bounds[0] is not None else None,
+            "LOG_FILE": log_file,
+            "INITIALIZED_AT": time.time(),
+        }
 
         if use_vram:
             vram_gb = vram_bytes / (1024 ** 3)
-            status_data[key] = {
-                "PID": int(pid),
-                "PORT": int(port) if port is not None else None,
-                "MODE": "vram",
-                "VRAM": f"{vram_gb:.2f} GB",
-                "RAM": f"{post_rss_bytes / (1024 ** 3):.2f} GB",
-                "T/s": initial_tps,
-                "BASELINE_TPS": baseline_tps,
-                "LOG_FILE": log_file,
-                "INITIALIZED_AT": time.time(),
-            }
+            model_entry["VRAM"] = f"{vram_gb:.2f} GB"
+            model_entry["RAM"] = f"{post_rss_bytes / (1024 ** 3):.2f} GB"
             logging.info(
                 f"Model '{key}' initialized in VRAM mode "
                 f"(PID: {pid}, Port: {port}, VRAM: {vram_gb:.2f} GB, "
-                f"RAM: {ram_mb:.1f} MB, Log: {log_file})"
+                f"RAM: {ram_mb:.1f} MB, Predicted T/s: {pred_tps}, Baseline T/s: {calibrated_baseline})"
             )
         else:
             ram_gb = post_rss_bytes / (1024 ** 3)
-            status_data[key] = {
-                "PID": int(pid),
-                "PORT": int(port) if port is not None else None,
-                "MODE": "ram",
-                "RAM": f"{ram_gb:.2f} GB",
-                "T/s": initial_tps,
-                "BASELINE_TPS": baseline_tps,
-                "LOG_FILE": log_file,
-                "INITIALIZED_AT": time.time(),
-            }
+            model_entry["RAM"] = f"{ram_gb:.2f} GB"
             logging.info(
                 f"Model '{key}' initialized in RAM mode "
-                f"(PID: {pid}, Port: {port}, RAM: {ram_gb:.2f} GB, Log: {log_file})"
+                f"(PID: {pid}, Port: {port}, RAM: {ram_gb:.2f} GB, "
+                f"Predicted T/s: {pred_tps}, Baseline T/s: {calibrated_baseline})"
             )
+
+        status_data[key] = model_entry
 
         with open(STATUS_FILE, "w", encoding="utf-8") as f:
             json.dump(status_data, f, indent=4)
@@ -759,15 +867,19 @@ def runforever(
                 perf_degraded = False
 
                 if tps_history:
-                    # Resolve baseline T/s: use stored baseline if valid, otherwise establish first non-zero T/s
+                    # Resolve baseline T/s grounded within Lumina's prediction ± 10%
                     saved_baseline = info.get("BASELINE_TPS")
                     if saved_baseline is not None and isinstance(saved_baseline, (int, float)) and saved_baseline > 0:
                         baseline_tps = float(saved_baseline)
                     else:
-                        baseline_tps = tps_history[0]
+                        raw_first_tps = tps_history[0]
+                        baseline_tps, pred_tps, bounds = calibrate_baseline_tps(raw_first_tps, key)
+                        info["PREDICTED_TPS"] = pred_tps
                         info["BASELINE_TPS"] = round(baseline_tps, 2)
+                        info["TPS_RANGE"] = [bounds[0], bounds[1]] if bounds[0] is not None else None
                         logging.info(
-                            f"📊 First prompt executed! Established baseline speed for '{key}': {baseline_tps:.2f} T/s"
+                            f"📊 Established Lumina-grounded baseline speed for '{key}': {baseline_tps:.2f} T/s "
+                            f"(Predicted: {pred_tps} T/s, Range: {info['TPS_RANGE']})"
                         )
                         updated_status = True
 
@@ -811,9 +923,12 @@ def runforever(
                             f"Preserving query for replay to fallback '{base_model_clean}' on port {allocated_port}."
                         )
 
+                    # Maximum system throughput: terminate degraded process immediately
                     killprocess(pid, timeout=kill_timeout)
                     Killed_model = key
-                    time.sleep(socket_wait)  # allow OS to fully release the socket
+
+                    # Actively wait for port release instead of blind sleep
+                    launch_model.wait_for_port_free(allocated_port, timeout=socket_wait)
 
                     # Auto-embed accumulated context into Chroma for seamless continuity
                     try:
@@ -823,11 +938,17 @@ def runforever(
                     except Exception as ce:
                         logging.warning(f"Could not auto-embed context during switch: {ce}")
 
-                    # Launch fallback model on the exact same port
+                    # Pre-fault fallback weights into memory at maximum hardware bus throughput
+                    fallback_file = base_model if base_model.endswith(".gguf") else base_model + ".gguf"
+                    fallback_path = os.path.join(PROJECT_ROOT, "models", fallback_file)
+                    launch_model.prefault_model_weights(fallback_path)
+
+                    # Launch fallback model on the exact same port with fast_init=True
                     launch_result = launch_model.launchmodel(
                         base_model,
                         port=allocated_port,
                         startup_timeout=init_timeout,
+                        fast_init=True,
                     )
 
                     del status_data[key]
@@ -844,8 +965,9 @@ def runforever(
                             vram_delta_mb=vram_delta_mb,
                             no_vram=no_vram,
                             gpu_index=gpu_index,
-                            settle_time=settle_time,
+                            settle_time=0.2,
                             init_timeout=init_timeout,
+                            fast_mode=True,
                         )
 
                         # Re-read status_data after raminitilization writes it
@@ -859,10 +981,10 @@ def runforever(
                             f"✔ Successfully switched to '{base_model_clean}' on port {new_port}!"
                         )
 
-                        # Replay buffered query to fallback model if present
+                        # Replay buffered query to fallback model with full hardware capacity
                         if auto_replay and active_query:
                             logging.info(
-                                f"🔄 Smart Switch: Automatically replaying preserved query "
+                                f"⚡ Smart Switch: Rapidly replaying preserved query "
                                 f"to fallback model on port {new_port}..."
                             )
                             replay_buffered_query(port=new_port, buffer_file=buffer_file)

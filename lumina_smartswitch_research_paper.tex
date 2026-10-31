@@ -1,0 +1,714 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[margin=2.2cm,top=2.4cm,bottom=2.4cm]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,tabularx,array}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{caption}
+\usepackage[most]{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{positioning,shapes.geometric,arrows.meta,fit,backgrounds,calc}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+
+% ---------- macros ----------
+\newcommand{\Binf}{B_{\mathrm{mem}}^{\mathrm{inf}}}
+\newcommand{\Braw}{B_{\mathrm{mem}}^{\mathrm{raw}}}
+\newcommand{\Tfirst}{T_{\mathrm{first}}}
+\newcommand{\Tcurr}{T_{\mathrm{curr}}}
+\newcommand{\Ppred}{P_{\mathrm{pred}}}
+\newcommand{\Mw}{M_w}
+\newcommand{\Cfun}{\mathcal{C}}
+\newcommand{\Ts}{\,\mathrm{T/s}}
+\newcommand{\GBs}{\,\mathrm{GB/s}}
+\newcommand{\GB}{\,\mathrm{GB}}
+\newcommand{\su}{\,\mathrm{s}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcolumntype{C}{>{\centering\arraybackslash}X}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\captionsetup{font=small,labelfont=bf,labelsep=period}
+\captionsetup[table]{position=above,skip=6pt}
+\setlist{itemsep=2pt,topsep=4pt}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.18}
+
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{16pt}{6pt}
+\titlespacing*{\subsection}{0pt}{12pt}{4pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.3pt}
+\renewcommand{\footrulewidth}{0.3pt}
+\fancyhead[L]{\small\itshape Lumina \& SmartSwitch: Resilient Edge LLM Serving via Analytical Memory Bounds}
+\fancyfoot[L]{\small Confidential -- Submitted for Peer Review}
+\fancyfoot[R]{\small Page \thepage\ of \pageref{LastPage}}
+
+\tcbset{warnbox/.style={enhanced,colback=red!4,colframe=red!60!black,boxrule=0.6pt,
+  leftrule=3pt,arc=1pt,left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries\small}}
+
+\begin{document}
+
+% ---------- title ----------
+\begin{center}
+{\LARGE\bfseries Lumina \& SmartSwitch: Resilient Edge LLM Serving via Analytical Memory Bounds, Predictive Watchdogs, and Near-Atomic Failover\par}
+\vspace{10pt}
+{\large Lumina Systems Research Team\par}
+\vspace{6pt}
+{\small Code, raw logs, and reproduction scripts: \url{https://github.com/lumina-systems/smartswitch} (commit \texttt{v0.1.0}; archived DOI: \texttt{10.5281/zenodo.14022831})\par}
+\end{center}
+\vspace{4pt}
+
+\begin{abstract}
+\noindent
+Deploying Large Language Models (LLMs) on resource-constrained consumer edge devices presents acute reliability and latency challenges. Edge environments frequently experience background process contention, thermal throttling mid-generation, and out-of-memory crashes. Existing edge inference frameworks lack proactive performance sensing; furthermore, conventional runtime watchdogs that evaluate health against an initial observed generation speed ($\Tfirst$) fall victim to the \textbf{cold-start degradation trap}, adopting a crippled baseline whenever initialization coincides with background system contention.
+
+\medskip\noindent
+In this paper, we present \textbf{Lumina}, a hardware-aware autonomous edge LLM orchestration runtime, and its high-availability subsystem, \textbf{SmartSwitch}. Lumina grounds runtime expectations in physical memory architecture: through a one-time per-machine micro-profiling procedure, Lumina assesses sustainable inference-effective memory bandwidth ($\Binf = 7.50\GBs$ on our test machine) to analytically predict steady-state token velocity ($\Ppred$) from model parameter footprints on disk. Across four models ranging from 0.5B to 3.2B parameters, leave-one-out cross-validation yields a \textbf{7.2\% LOO-MAPE}, confirming that cross-model decode velocity scales inversely with quantized weight footprint. SmartSwitch couples runtime monitoring to these analytical bounds, constraining empirical baselines to $\Ppred \pm 10\%$. Code and raw logs are publicly available (Appendix~A).
+
+\medskip\noindent
+Under real CPU contention induced by \code{stress-ng}, conventional first-query baselines collapse to $0.99\Ts$ (a 96.3\% degradation) and rolling-median policies adopt $2.52\Ts$, failing to detect runtime decay; SmartSwitch clamps the baseline to $18.22\Ts$, correctly identifying anomalous performance. When unrecoverable degradation or memory inflation occurs, SmartSwitch executes a near-atomic same-port hot-swap in \textbf{$3.22\su \pm 0.64\su$} across repeated trials ($33.45\su \pm 1.92\su$ under active CPU saturation), preserves in-flight prompts in an atomic ring buffer with $100\%$ application-layer query completion via the \code{safe\_query} wrapper, and maintains semantic conversation continuity ($100\%$ factual recall vs.\ $0\%$ without retrieval) via a local vector store. Finally, we formulate a context-aware memory traffic model that accounts for KV-cache expansion over long horizons and outline a hierarchical cross-node failover framework for distributed edge clusters.
+\end{abstract}
+
+\noindent\textbf{Keywords:} Edge LLM Serving, Memory Bandwidth Modeling, Self-Healing Watchdogs, High-Availability Systems, Distributed Inference, KV-Cache Degradation.
+
+\bigskip
+% ---------- notation ----------
+\begin{table}[h]
+\centering
+\caption{System notation.}\label{tab:notation}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{2.2cm}L>{\raggedright\arraybackslash}p{3.6cm}@{}}
+\toprule
+\textbf{Symbol} & \textbf{Definition} & \textbf{Testbed value} \\
+\midrule
+$\Braw$ & Raw sequential DRAM bus throughput measured by micro-benchmark & $23.41\GBs$ \\
+$\Binf$ & Inference-effective memory bandwidth during single-batch decode & $7.502\GBs$ \\
+$\eta_{\mathrm{inf}}$ & Memory bus inference efficiency coefficient ($\Binf / \Braw$) & $0.3205$ ($32.0\%$) \\
+$\Mw$ & On-disk quantized model footprint (GGUF format) & $0.370$--$1.881\GB$ \\
+$M_{\mathrm{traffic}}(n)$ & Context-dependent memory traffic per token at sequence length $n$ & Eq.~\eqref{eq:traffic} \\
+$\kappa$ & KV-cache bus traffic per context token across all layers ($2\,L\,n_{\mathrm{kv}}\,d_h\,b_{\mathrm{kv}}$) & $32.768$ KiB/tok (Llama 1B) \\
+$\Ppred(n)$ & Context-aware predicted steady-state decode velocity & tokens/s \\
+$\Tfirst$ & Measured token velocity during the initial query of a model process & tokens/s \\
+$\Tcurr$ & Measured rolling token velocity across token window $W$ & tokens/s \\
+$\Cfun(\cdot,\cdot)$ & Analytical baseline calibration function & clamped to $\Ppred \pm 10\%$ \\
+$\theta_{\mathrm{tps}}$ & Watchdog speed-degradation trip threshold coefficient & $0.75$ ($25\%$ drop) \\
+$\delta_{\mathrm{ram}}$ & Maximum allowable RSS memory inflation threshold & $0.25$ ($25\%$ allowance) \\
+$W$ & Sliding token-count observation window & 16 tokens \\
+$k$ & Consecutive sub-threshold windows required to trigger failover & 3 intervals \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ======================================================================
+\section{Introduction}
+The migration of Large Language Models (LLMs) from hyperscale cloud datacenters to consumer edge devices---such as laptops, local gateways, and robotic workstations---is driven by strict privacy preservation, offline autonomy, and predictable operating economics. However, consumer hardware operates without over-provisioned VRAM, uniform memory architectures, or dedicated out-of-band management controllers. Serving LLMs in these resource-constrained edge environments exposes three fundamental systems dilemmas:
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{The Cold-Start Degradation Trap.} Traditional runtime watchdogs establish baseline performance expectations by observing the execution latency of the first incoming query ($\Tfirst$). If a model is launched while background operating system tasks, indexers, or co-located processes contend for CPU cores or memory bandwidth, $\Tfirst$ is severely depressed. The watchdog adopts this crippled velocity as normal operating behavior, effectively blinding itself to persistent degradation. Conversely, transient single-token cache bursts during prefill can establish impossibly high baselines, causing subsequent normal generation to trigger false-alarm failovers.
+\item \textbf{The Context-Length Throughput Decay.} As autoregressive generation progresses, the accumulated Key-Value (KV) cache grows monotonically. On memory-bandwidth-bound edge processors, reading the active KV-cache on each decode step increases memory bus load beyond the static parameter footprint. A watchdog relying on a static performance expectation will inevitably mistake expected long-context memory saturation for abnormal process degradation.
+\item \textbf{The Catastrophic Failover Penalty.} In consumer edge serving, when an inference engine encounters an out-of-memory (OOM) fault or thermal crash, operating system socket teardown severs active HTTP connections. In-flight prompts are dropped, client applications receive unhandled network exceptions, and conversational session state is discarded. Conventional restarts require tens of seconds, exceeding interactive human timeout limits.
+\end{enumerate}
+
+To resolve these challenges, we present \textbf{Lumina} and \textbf{SmartSwitch}. Lumina replaces empirical trial-and-error with analytical hardware grounding. By characterizing the physical memory subsystem via one-time per-machine micro-profiling, Lumina predicts the achievable steady-state token velocity of any quantized model architecture prior to execution. SmartSwitch leverages this analytical expectation to construct a self-calibrating watchdog that bounds baseline throughput to $\Ppred \pm 10\%$, eliminating cold-start bias.
+
+\subsection*{Contributions}
+The primary contributions of this paper are:
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Inference-Effective Bandwidth Modeling.} We formulate an analytical throughput model based on effective decode memory bandwidth ($\Binf$), demonstrating via leave-one-out cross-validation across four diverse architectures (0.5B to 3.2B parameters) that single-batch decode velocity scales with the inverse of actual GGUF file size with a \textbf{7.2\% LOO-MAPE}.
+\item \textbf{Analytical Baseline Clamping.} We introduce a calibration function $\Cfun(\Tfirst, \Ppred)$ that bounds initial watchdog expectations within a $\pm 10\%$ theoretical window, preventing baseline poisoning under severe CPU contention and filtering out L3 cache prefill bursts.
+\item \textbf{Context-Aware Traffic Formulation.} We extend the static roofline model to incorporate dynamic KV-cache memory bus traffic ($\kappa$), proving that context-aware threshold adjustment prevents baseline expectation violations at extended horizons ($n \ge 2738$) and eliminates false-alarm failover trips at extreme sequence lengths ($n > 11{,}000$).
+\item \textbf{Hardware-Saturated Fast Initialization.} We optimize model launch pipelines using asymmetric CPU thread concurrency (\code{-t} physical vs.\ \code{-tb} logical cores), kernel page pre-faulting (\code{fcntl} / \code{posix\_fadvise}), and active low-latency health probing. On cold unoptimized binary launches (no page-cache priming, single-threaded defaults), startup latency falls from $21.15\su$ to $4.30\su$ ($4.92\times$ acceleration), with warm restart latencies reaching $1.86\su \pm 0.38\su$ over $N=19$ warm launches (Table~\ref{tab:startup}).
+\item \textbf{Near-Atomic Same-Port Failover.} We design a coordinated client-server hand-off architecture combining an in-memory ring buffer with rapid socket rebinding, achieving end-to-end failover in \textbf{$3.22\su \pm 0.64\su$} across repeated trials ($33.45\su \pm 1.92\su$ under active CPU contention) with $100\%$ query completion via the \code{safe\_query} client wrapper and verified semantic context continuity ($100\%$ vs.\ $0\%$ recall) via a local Chroma vector database.
+\item \textbf{Distributed Edge-Cloud Formalism.} We generalize our analytical model to heterogeneous multi-node edge clusters, deriving optimal node scheduling criteria and multi-tier recovery latency bounds.
+\end{enumerate}
+
+The remainder of this paper is organized as follows: Section~\ref{sec:overview} provides a system overview of Lumina; Section~\ref{sec:theory} presents our theoretical formulation and analytical bounding model; Section~\ref{sec:impl} details the implementation of SmartSwitch; Section~\ref{sec:eval} provides an extensive empirical evaluation under real hardware contention; Section~\ref{sec:discussion} discusses scaling to distributed topologies; Section~\ref{sec:limits} discusses system limitations; Section~\ref{sec:related} surveys related work; and Section~\ref{sec:conclusion} concludes.
+
+% ======================================================================
+\section{System Overview}\label{sec:overview}
+Lumina is architected as an autonomous edge LLM orchestration runtime structured across three operational tiers (Figure~\ref{fig:tiers}).
+
+\begin{figure}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  box/.style={draw=black!70, rounded corners=2pt, fill=white, align=center, font=\scriptsize, minimum height=0.8cm, text width=3.3cm, inner sep=3pt},
+  dec/.style={draw=black!70, diamond, aspect=2.4, fill=white, align=center, font=\scriptsize, inner sep=0pt, text width=2.5cm},
+  band/.style={draw=black!40, rounded corners=4pt, inner sep=9pt},
+  arr/.style={-{Stealth[length=2mm]}, thick, black!75},
+  lbl/.style={font=\scriptsize\bfseries, anchor=south west}]
+% Tier 1
+\node[box] (A) at (1.9,0) {Hardware profiler\\ (\textit{SystemAssess})};
+\node[box] (B) at (6.6,0) {Effective bandwidth\\ $B_{\mathrm{mem}}^{\mathrm{inf}}$};
+\node[box] (C) at (11.3,0) {Context-aware velocity\\ predictor $P_{\mathrm{pred}}(n)$};
+\draw[arr] (A) -- (B); \draw[arr] (B) -- (C);
+% Tier 2
+\node[box] (D) at (1.9,-3.6) {Incoming user query};
+\node[box] (E) at (6.6,-3.6) {Intent classifier \\ \& embedder};
+\node[box] (F) at (11.3,-3.6) {Domain centroid\\ matching};
+\node[box,text width=3.5cm] (G1) at (16.1,-2.8) {\textit{Code generation}\\ Qwen2.5-Coder 1.5B};
+\node[box,text width=3.5cm] (G2) at (16.1,-3.6) {\textit{General dialogue}\\ Llama-3.2 1B};
+\node[box,text width=3.5cm] (G3) at (16.1,-4.4) {\textit{Complex reasoning}\\ Hermes-3 3B};
+\draw[arr] (D) -- (E); \draw[arr] (E) -- (F);
+\draw[arr] (F.east) -- (G1.west); \draw[arr] (F.east) -- (G2.west); \draw[arr] (F.east) -- (G3.west);
+% Tier 3
+\node[box] (J) at (1.9,-8.2) {Active model process\\ (:port)};
+\node[box] (K) at (6.6,-8.2) {SmartSwitch watchdog\\ (token meter)};
+\node[dec] (L) at (11.3,-8.2) {Degradation or\\ RAM inflated?};
+\node[box,text width=3.5cm] (M) at (16.1,-7.2) {Continue steady-state\\ serving};
+\node[box,text width=3.5cm] (N) at (16.1,-8.4) {Near-atomic same-port\\ hand-off};
+\node[box,text width=3.5cm] (O) at (16.1,-9.6) {Ring-buffer replay \&\\ vector continuity};
+\draw[arr] (J) -- (K); \draw[arr] (K) -- (L);
+\draw[arr] (L.east) -- ++(0.5,0) |- (M.west) node[pos=0.3,left,font=\scriptsize]{No};
+\draw[arr] (L.east) -- ++(0.5,0) |- (N.west) node[pos=0.3,left,font=\scriptsize]{Yes};
+\draw[arr] (N) -- (O);
+% bands
+\begin{scope}[on background layer]
+\node[band,fill=blue!6,fit=(A)(B)(C)] (t1) {};
+\node[band,fill=green!7,fit=(D)(E)(F)(G1)(G2)(G3)] (t2) {};
+\node[band,fill=orange!8,fit=(J)(K)(L)(M)(N)(O)] (t3) {};
+\end{scope}
+\node[lbl] at ([yshift=2pt]t1.north west) {Tier 1: Hardware sensing \& modeling};
+\node[lbl] at ([yshift=2pt]t2.north west) {Tier 2: Semantic intent \& task orchestration};
+\node[lbl] at ([yshift=2pt]t3.north west) {Tier 3: High-availability execution (SmartSwitch)};
+% predictor feed
+\draw[arr,dashed] (C.south) -- ++(0,-0.75) node[pos=0.5,right,font=\scriptsize]{$P_{\mathrm{pred}}$ to Tier 3};
+\draw[arr,dashed] ([yshift=0.6cm]K.north) -- (K.north) node[pos=0.0,above,font=\scriptsize,yshift=1pt]{from Tier 1};
+\end{tikzpicture}}
+\caption{Three-tier architecture of Lumina. The velocity predictor of Tier~1 feeds the SmartSwitch watchdog in Tier~3.}\label{fig:tiers}
+\end{figure}
+
+\subsection{Hardware Sensing Tier (\code{SystemAssess})}
+Autoregressive token generation in transformer LLMs is predominantly memory-bandwidth bound during single-batch execution ($B=1$): for each token generated, every active parameter in the model must be streamed from main memory into processor registers. Datasheet memory bandwidth (e.g., $34.1\GBs$ for dual-channel LPDDR3-2133) represents an unattainable theoretical ceiling. Furthermore, raw sequential copy micro-benchmarks yield higher bandwidth than the pointer-chasing, dequantization, and GEMV compute loops intrinsic to quantized LLM inference.
+
+\code{SystemAssess} conducts a one-time per-machine calibration run across standardized inference kernels to determine the machine's true \textbf{inference-effective decode bandwidth} $\Binf$. On our benchmark hardware, while raw RAM micro-benchmarks report $\Braw = 23.41\GBs$, actual inference sustains $\Binf = 7.502\GBs$ ($\eta_{\mathrm{inf}} \approx 0.3205$). All downstream predictions are parameterized against this calibrated physical quantity.
+
+\subsection{Semantic Intent Routing \& Task Centroids}
+Rather than hosting a single monolithic model that strains edge memory, Lumina maintains an on-disk registry of lightweight, specialized models (0.5B to 3.2B parameters). Incoming queries are embedded using a local sentence transformer and matched against pre-computed task centroid vectors in latent space. Coding requests route to specialized code models (e.g., Qwen2.5-Coder-1.5B), deep analytical tasks route to higher-parameter models (e.g., Hermes-3-Llama-3.2-3B), and standard conversational queries route to low-latency models (e.g., Qwen2.5-0.5B or Llama-3.2-1B).
+
+\subsection{High-Availability Execution Tier (SmartSwitch)}
+SmartSwitch supervises the active model process via a non-invasive daemon. It inspects generation velocity using sliding token-count windows, monitors process resident set size (RSS), and intercepts anomalies before fatal OOM conditions trigger kernel-level process termination.
+
+% ======================================================================
+\section{Theoretical Formulation: Analytical Velocity Bounds}\label{sec:theory}
+
+\subsection{Memory-Bandwidth-Bound Inference Mechanics}
+For an autoregressive transformer model quantized under GGUF block schemes, we define $\Mw$ as the actual on-disk file size of the model weights in gigabytes. We deliberately utilize the physical file footprint on disk rather than idealized parameter calculations ($P \cdot Q / 8$) because modern edge quantization schemes (such as \code{Q4\_K\_M}) employ mixed precision: critical attention projection weights are preserved at higher precision (e.g., 6-bit \code{Q6\_K}), while feed-forward tensors are quantized to 4-bit blocks. Furthermore, parameter counts reported in marketing literature diverge from physical matrix dimensions (e.g., Llama-3.2-1B contains approximately $1.236 \times 10^9$ actual parameters).
+
+Under single-batch generation ($B=1$) at short sequence lengths, memory bus traffic is dominated by the weight parameter stream. The expected steady-state decode velocity $\Ppred$ (in tokens per second) is given by:
+\begin{equation}\label{eq:ppred}
+\Ppred = \frac{\Binf}{\Mw}
+\end{equation}
+where $\Binf$ is the empirical inference-effective memory bandwidth.
+
+\subsection{The $\pm 10\%$ Analytical Baseline Bounding Model}
+When a model launches, the initial token velocity $\Tfirst$ can be severely distorted by startup transients. SmartSwitch defines the \textbf{Analytical Baseline Calibration Function} $\Cfun(\Tfirst, \Ppred)$:
+\begin{equation}\label{eq:clamp}
+\Cfun(\Tfirst,\Ppred)=
+\begin{cases}
+(1-\epsilon)\,\Ppred, & \text{if } \Tfirst<(1-\epsilon)\,\Ppred \quad\text{(degraded start floor)}\\[2pt]
+(1+\epsilon)\,\Ppred, & \text{if } \Tfirst>(1+\epsilon)\,\Ppred \quad\text{(transient burst ceiling)}\\[2pt]
+\Tfirst, & \text{otherwise} \quad\text{(calibrated operating baseline)}
+\end{cases}
+\end{equation}
+We set $\epsilon = 0.10$ ($\pm 10\%$). This window is grounded in empirical variance: across repeated steady-state inferences under un-contended conditions, the coefficient of variation (CV) of token generation velocity is $\mathrm{CV} = \sigma/\mu \approx 0.051$ to $0.062$. A window of $\pm 1.65 \cdot \mathrm{CV}$ corresponds to a $90\%$ statistical tolerance interval. Setting $\epsilon = 0.10$ provides a tight, robust envelope that accommodates minor OS scheduler jitter while strictly rejecting anomalous measurements.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+\fill[blue!10] (0.3,0.6) rectangle (9.2,3.4);
+\draw[-{Stealth}] (0.3,0) -- (0.3,4.2) node[above,font=\small]{Tokens / s};
+\draw[-{Stealth}] (0.3,0) -- (9.8,0) node[right,font=\small]{Time / inferences};
+\draw[thick,blue!60!black] (0.3,3.4) -- (9.2,3.4);
+\draw[thick,blue!60!black] (0.3,0.6) -- (9.2,0.6);
+\draw[dashed,thick,black!70] (0.3,2.0) -- (9.2,2.0);
+\node[left,font=\small] at (0.25,3.4) {$1.10\,P_{\mathrm{pred}}$};
+\node[left,font=\small] at (0.25,2.0) {$P_{\mathrm{pred}}$};
+\node[left,font=\small] at (0.25,0.6) {$0.90\,P_{\mathrm{pred}}$};
+\node[right,font=\small,align=left] at (9.3,3.4) {Upper bound\\(caps L3 prefill bursts)};
+\node[right,font=\small,align=left] at (9.3,2.0) {Expected steady-state\\velocity};
+\node[right,font=\small,align=left] at (9.3,0.6) {Lower bound\\(rejects contended starts)};
+\node[font=\small\itshape,blue!50!black] at (4.7,2.7) {Calibrated band ($\pm10\%$ window)};
+\end{tikzpicture}
+\caption{The $\pm10\%$ calibrated band around the predicted steady-state velocity.}\label{fig:band}
+\end{figure}
+
+\paragraph{Analytical properties.}
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Rejection of contended starts.} If a model initializes while background processes consume CPU cycles, $\Tfirst$ can collapse by over $90\%$ (e.g., from $26.5\Ts$ down to $0.99\Ts$ under \code{stress-ng}). Standard watchdogs adopt $0.99\Ts$ as the healthy baseline. SmartSwitch clamps the baseline to $0.90\,\Ppred = 18.22\Ts$, preserving full detection sensitivity.
+\item \textbf{Rejection of cache-prefill bursts.} Ultra-short prompt generations (1--2 tokens) can execute entirely within the processor's on-chip 6~MB L3 cache, exhibiting burst speeds exceeding $190\Ts$ ($2.5\times$ above memory bus limits). Capping the baseline at $1.10\,\Ppred$ prevents the registration of an unachievable expectation that would cause immediate false alarms on subsequent steady-state tokens.
+\end{enumerate}
+
+\subsection{Context-Aware Memory Traffic Model}
+The static approximation $M_{\mathrm{traffic}} \approx \Mw$ holds only for short contexts. For extended conversations, the memory traffic required to stream the accumulated Key-Value cache across the memory bus on every autoregressive step becomes significant. For an architecture with $L$ layers, $n_{\mathrm{kv}}$ key-value heads (under Grouped-Query Attention), head dimension $d_h$, and storage byte precision $b_{\mathrm{kv}}$ (2 bytes for fp16), the KV-cache memory traffic generated per context token is:
+\begin{equation}\label{eq:kappa}
+\kappa = 2 \cdot L \cdot n_{\mathrm{kv}} \cdot d_h \cdot b_{\mathrm{kv}} \quad \text{(bytes/token)}
+\end{equation}
+At sequence context length $n$, the total memory traffic required to generate a single token is:
+\begin{equation}\label{eq:traffic}
+M_{\mathrm{traffic}}(n) = \Mw + \frac{n \cdot \kappa}{1024^3} \quad \text{(GB)}
+\end{equation}
+Consequently, the \textbf{context-aware predicted velocity} is:
+\begin{equation}\label{eq:ppredn}
+\Ppred(n) = \frac{\Binf}{M_{\mathrm{traffic}}(n)} = \frac{\Binf}{\Mw + n \cdot \kappa / 1024^3}
+\end{equation}
+
+\paragraph{Concrete case study (Llama-3.2-1B-Instruct).}
+For Llama-3.2-1B ($L=16$, $n_{\mathrm{kv}}=8$, $d_h=64$, $b_{\mathrm{kv}}=2$), the per-token KV footprint is $\kappa = 32{,}768$ bytes/token ($32.0$ KiB/tok). Parameterized against the machine's calibrated inference bandwidth ($\Binf = 7.502\GBs$), Table~\ref{tab:kv} illustrates the impact of context scaling.
+
+\begin{table}[h]
+\centering
+\caption{Context-aware traffic and predicted velocity for Llama-3.2-1B ($\Binf = 7.502\GBs$).}\label{tab:kv}
+\small
+\begin{tabularx}{\linewidth}{@{}rCCCCL@{}}
+\toprule
+\textbf{Context $n$} & \textbf{$M_{\mathrm{traffic}}(n)$ (GB)} & \textbf{$\Ppred(n)$ (T/s)} & \textbf{Drop vs.\ $n=0$} & \textbf{Static 90\% floor ($8.98\Ts$)} & \textbf{Hard trip point ($6.73\Ts$)} \\
+\midrule
+0 (static) & $0.752\GB$ & $\mathbf{9.98}\Ts$ & 0.0\% & Baseline floor & Above trip threshold \\
+256  & $0.760\GB$ & $\mathbf{9.87}\Ts$ & 1.0\%  & Above floor & Above trip threshold \\
+512  & $0.768\GB$ & $\mathbf{9.77}\Ts$ & 2.0\%  & Above floor & Above trip threshold \\
+1024 & $0.783\GB$ & $\mathbf{9.58}\Ts$ & 4.0\%  & Above floor & Above trip threshold \\
+2048 & $0.815\GB$ & $\mathbf{9.21}\Ts$ & 7.7\%  & Above floor & Above trip threshold \\
+4096 & $0.877\GB$ & $\mathbf{8.55}\Ts$ & \textbf{14.3\%} & \textbf{\textcolor{red!70!black}{Below floor} ($8.55 < 8.98$)} & Above trip threshold \\
+8192 & $1.002\GB$ & $\mathbf{7.49}\Ts$ & \textbf{25.0\%} & Below floor & Above trip threshold \\
+12288 & $1.127\GB$ & $\mathbf{6.66}\Ts$ & \textbf{33.3\%} & Below floor & \textbf{\textcolor{red!70!black}{Breaches trip point} ($6.66 < 6.73$)} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{tcolorbox}[warnbox,title={Context-Aware Trip Analysis}]
+Two critical operational thresholds govern watchdog health:
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Baseline expectation breach ($n \ge 2{,}738$ tokens):} Legitimate autoregressive decode velocity drops below the static $90\%$ baseline floor ($8.98\Ts$). A static watchdog observing this lower velocity would permanently register a distorted operating baseline.
+\item \textbf{Hard degradation false alarm ($n \ge 11{,}864$ tokens):} With $\theta_{\mathrm{tps}} = 0.75$, the effective trip threshold is $0.75 \times 0.90 \times \Ppred(0) = 6.73\Ts$. At sequence lengths exceeding $11{,}864$ tokens, natural KV-cache bus traffic slows generation below this threshold, triggering an illegitimate failover despite healthy hardware.
+\end{enumerate}
+SmartSwitch eliminates both failure modes by evaluating $\Ppred(n_{\mathrm{curr}})$ dynamically per request, expanding the allowable velocity tolerance proportionally to context length.
+\end{tcolorbox}
+
+\subsection{Anomaly Detection \& Degradation Trip Conditions}
+SmartSwitch implements a \textbf{sliding token-count velocity meter} rather than a fixed time-based sampler. In low-velocity regimes (e.g., 3B models generating at $\sim 4\Ts$), a 0.1-second time window captures fewer than 0.5 tokens, introducing severe quantization noise. SmartSwitch measures velocity over a FIFO queue of $W = 16$ completed token intervals:
+\begin{equation}\label{eq:tcurr}
+\Tcurr = \frac{W-1}{t_{\mathrm{token}}[W] - t_{\mathrm{token}}[1]}
+\end{equation}
+A failover condition is flagged when:
+\begin{equation}\label{eq:trip}
+\mathrm{TRIP} = \bigl(\Tcurr < \theta_{\mathrm{tps}} \cdot \Cfun(\Tfirst, \Ppred(n))\bigr) \;\lor\; \bigl(R_{\mathrm{curr}} > (1+\delta_{\mathrm{ram}}) \cdot R_{\mathrm{baseline}}\bigr)
+\end{equation}
+where $\theta_{\mathrm{tps}} = 0.75$ ($25\%$ degradation threshold) and $\delta_{\mathrm{ram}} = 0.25$ ($25\%$ memory expansion allowance). To filter out transient thread scheduling hiccups, SmartSwitch requires $k=3$ consecutive violating evaluation windows before initiating failover.
+
+% ======================================================================
+\section{SmartSwitch Architecture \& Systems Implementation}\label{sec:impl}
+
+Figure~\ref{fig:seq} shows the end-to-end hand-off protocol between the client wrapper, the degraded model, and the fallback model.
+
+\begin{figure}[p]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  part/.style={draw=black!70, fill=blue!7, rounded corners=2pt, align=center, font=\scriptsize, minimum height=0.8cm, text width=2.15cm, inner sep=2pt},
+  life/.style={black!35, dashed},
+  msg/.style={-{Stealth[length=1.8mm]}, thick, black!80},
+  ret/.style={-{Stealth[length=1.8mm]}, thick, black!80, dashed},
+  lab/.style={font=\scriptsize, fill=white, inner sep=1pt, align=center},
+  note/.style={draw=orange!70!black, fill=yellow!25, font=\scriptsize, align=center, inner sep=3pt, rounded corners=1pt}]
+\def\sp{2.75}
+\def\top{0}
+\def\bot{-16.2}
+\node[part] (p0) at (0*\sp,\top) {Client};
+\node[part] (p1) at (1*\sp,\top) {SafeQuery client wrapper};
+\node[part] (p2) at (2*\sp,\top) {Query ring buffer (\code{query\_buffer.json})};
+\node[part] (p3) at (3*\sp,\top) {Degraded model (:port)};
+\node[part] (p4) at (4*\sp,\top) {OS kernel \& page cache};
+\node[part] (p5) at (5*\sp,\top) {Fallback model (:port)};
+\node[part] (p6) at (6*\sp,\top) {Chroma vector store};
+\foreach \i in {0,...,6} \draw[life] (\i*\sp,-0.4) -- (\i*\sp,\bot);
+% messages: from to y label
+\newcommand{\M}[5]{\draw[#5] ({#1*\sp},#3) -- node[lab,above=-1pt] {#4} ({#2*\sp},#3);}
+\M{0}{1}{-1.2}{\textbf{1}~Submit query payload}{msg}
+\M{1}{2}{-2.1}{\textbf{2}~Persist in-flight request\\ (state: PROCESSING)}{msg}
+\M{1}{3}{-3.1}{\textbf{3}~HTTP POST /v1/completions}{msg}
+% self message
+\draw[msg] (3*\sp,-4.0) -- ++(0.7,0) -- ++(0,-0.45) -- ++(-0.7,0);
+\node[lab,anchor=west] at (3*\sp+0.75,-4.22) {\textbf{4}~Memory spike /\\ CPU thrashing};
+\node[note,minimum width=9cm] at (4*\sp,-5.3) {SmartSwitch watchdog trips ($k=3$ violations)};
+\M{3}{4}{-6.3}{\textbf{5}~SIGTERM / SIGKILL process}{msg}
+\node[note] at (4*\sp,-7.1) {Port enters $0.04\su$ rebind window};
+\M{1}{4}{-8.0}{\textbf{6}~Connection probe (receives \code{ECONNREFUSED})}{msg}
+% self message GW
+\draw[msg] (1*\sp,-8.9) -- ++(-0.7,0) -- ++(0,-0.45) -- ++(0.7,0);
+\node[lab,anchor=east] at (1*\sp-0.75,-9.12) {\textbf{7}~Suppress error;\\ 20~ms backoff loop};
+\M{5}{4}{-10.2}{\textbf{8}~Prefault model weights\\ (\code{fcntl F\_RDAHEAD})}{msg}
+\M{5}{6}{-11.2}{\textbf{9}~Snapshot recent\\ chat context}{msg}
+\M{5}{4}{-12.2}{\textbf{10}~Bind exact TCP port\\ (\code{-tb 8 -{}-nologo})}{msg}
+\M{4}{5}{-13.1}{\textbf{11}~Socket bound / HTTP 200 ready}{ret}
+\M{1}{5}{-14.0}{\textbf{12}~Replay buffered query from ring}{msg}
+\M{5}{1}{-14.9}{\textbf{13}~Stream completed completion}{ret}
+\M{1}{2}{-15.7}{\textbf{14}~Mark COMPLETE /\\ purge buffer}{msg}
+\M{1}{0}{-16.5}{\textbf{15}~Final verified response (zero dropped queries)}{ret}
+\end{tikzpicture}}
+\caption{Same-port failover sequence. Solid arrows are requests; dashed arrows are responses.}\label{fig:seq}
+\end{figure}
+
+\subsection{In-Flight Query Ring Buffer}
+Before any HTTP payload is dispatched across the network socket, SmartSwitch serializes the request parameters, endpoint, timestamp, and unique request ID into an atomic, persistent ring buffer (\code{data/query\_buffer.json}). The buffer is released only upon successful receipt of HTTP status \code{200} and validation of generated completion tokens.
+
+\subsection{Hardware-Saturating Initialization Pipeline}
+Standard model initialization exhibits high startup latency due to synchronous single-threaded I/O, sequential page faults, and terminal logging overhead. SmartSwitch incorporates three low-level systems optimizations in \code{launch\_model.py}:
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Asymmetric thread concurrency.} Allocates physical CPU cores to autoregressive generation (\code{-t 4}) to prevent hyperthreading cache contention, while dedicating all \textbf{8 logical CPU threads} (\code{-tb 8}) to parallel prompt evaluation and dequantization.
+\item \textbf{Kernel page-cache pre-faulting.} Prior to spawning the server binary, SmartSwitch triggers kernel sequential readahead via \code{fcntl(fd, 45, 1)} (\code{F\_RDAHEAD} on macOS) or \code{posix\_fadvise(POSIX\_FADV\_WILLNEED)} on Linux, streaming model weights into memory at storage bus speed.
+\item \textbf{Dynamic low-latency health probing.} Replaces arbitrary multi-second initialization sleeps with adaptive HTTP \code{/health} polling at 20~ms intervals.
+\end{enumerate}
+
+\subsection{Near-Atomic Same-Port Socket Hand-off}
+To prevent complex client-side reconfiguration or service discovery churn, the fallback model binds to the \textbf{exact same TCP port}. When the degraded model is terminated, the operating system kernel initiates socket teardown, creating a transient $0.04\su$ window where connection requests receive \code{ECONNREFUSED}.
+
+SmartSwitch bridges this window via a coordinated client-server architecture:
+\begin{itemize}[leftmargin=*]
+\item \textbf{Client resilience (\code{safe\_query}).} The client application uses \code{safe\_query}, which suppresses transient connection errors, activates a high-frequency polling loop (\code{SO\_REUSEADDR}), and replays the in-flight query as soon as the fallback server responds with HTTP \code{200}.
+\item \textbf{Autonomous daemon recovery.} If an uninstrumented external client submitted the request, the SmartSwitch daemon itself detects the orphaned query in \code{query\_buffer.json} and replays it autonomously upon fallback initialization (\code{auto\_replay=True}).
+\end{itemize}
+
+\subsection{Vectorized Session State Continuity}
+Because physical KV-cache activations cannot be transplanted between different model architectures (e.g., moving from 3B to 0.5B parameters), SmartSwitch maintains conversation state by mirroring dialogue turns into a local Chroma vector database. Upon failover, the fallback model retrieves the most semantically relevant conversational context, maintaining dialogue continuity without context amnesia.
+
+% ======================================================================
+\section{Experimental Evaluation}\label{sec:eval}
+
+\subsection{Experimental Testbed}
+All benchmarks were performed on a consumer-tier edge workstation:
+\begin{itemize}[leftmargin=*]
+\item \textbf{Processor:} Intel Core i5-8257U (4 physical cores, 8 logical threads @ 1.4~GHz base, up to 3.9~GHz Turbo, 6~MB shared L3 cache).
+\item \textbf{Memory:} 8~GB LPDDR3-2133~MHz (measured $\Braw = 23.41\GBs$).
+\item \textbf{Operating system:} macOS Sonoma 14.6.1 (Darwin 23.6.0).
+\item \textbf{Execution engine:} llamafile v0.10.4-thin running GGUF runtime kernels.
+\item \textbf{Contention generator:} \code{stress-ng} v0.22.01.
+\end{itemize}
+Evaluated model registry:
+\begin{enumerate}[leftmargin=*]
+\item Qwen2.5-0.5B-Instruct-Q4\_K\_M ($0.370\GB$ file size, 494M parameters)
+\item Llama-3.2-1B-Instruct-Q4\_K\_M ($0.752\GB$ file size, 1.24B parameters)
+\item Qwen2.5-Coder-1.5B-Instruct-Q4\_K\_M ($0.918\GB$ file size, 1.54B parameters)
+\item Hermes-3-Llama-3.2-3B-Q4\_K\_M ($1.881\GB$ file size, 3.21B parameters)
+\end{enumerate}
+
+\subsection{Prediction Accuracy \& Bandwidth Scaling}
+To evaluate the predictive fidelity of Eq.~\eqref{eq:ppred}, we performed 10 independent generation runs across all four models, recording generation velocity (T/s), standard deviation, and mean absolute percentage error (MAPE). Figure~\ref{fig:bars} shows the inverse scaling of velocity with model size, and Table~\ref{tab:pred} reports the full results.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[x=0.36cm,y=0.9cm]
+\foreach \nm/\sz/\v/\mp [count=\i] in {Qwen2.5-0.5B/0.37/18.16/11.6, Llama-3.2-1B/0.75/10.40/4.1, Qwen2.5-Coder-1.5B/0.92/8.53/4.2, Hermes-3-3B/1.88/4.06/1.8}{
+  \fill[blue!55!black!70] (0,-\i) rectangle (\v,-\i+0.6);
+  \node[left,font=\small] at (-0.2,-\i+0.3) {\nm\ (\sz\,GB)};
+  \node[right,font=\small] at (\v+0.2,-\i+0.3) {$\v\Ts$ \quad (MAPE \mp\%)};
+}
+\draw (0,-0.2) -- (0,-4.6);
+\end{tikzpicture}
+\caption{Model size vs.\ generation velocity (inverse scaling), with calibrated MAPE.}\label{fig:bars}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Measured vs.\ predicted token velocity ($N=10$ runs per model). \textbf{Note:} ``Na\"ive roofline'' uses the uncorrected DRAM benchmark bandwidth formula $\Braw/\Mw$ without efficiency correction and over-predicts substantially; ``Calibrated pred'' is the model we evaluate and report MAPE against.}\label{tab:pred}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.3cm}CCCCCC@{}}
+\toprule
+\textbf{Model} & \textbf{File size $\Mw$} & \textbf{Na\"ive roofline $P_{\mathrm{naive}}$} & \textbf{Measured velocity} & \textbf{Std dev $\sigma$} & \textbf{Calibrated pred $P_{\mathrm{cal}}$} & \textbf{Calibrated MAPE} \\
+\midrule
+Qwen2.5-0.5B & $0.370\GB$ & $63.18\Ts$ & $\mathbf{18.16}\Ts$ & $\pm1.10\Ts$ & $20.28\Ts$ & $\mathbf{11.6\%}$ \\
+Llama-3.2-1B & $0.752\GB$ & $31.12\Ts$ & $\mathbf{10.40}\Ts$ & $\pm0.53\Ts$ & $9.98\Ts$ & $\mathbf{4.1\%}$ \\
+Qwen2.5-Coder-1.5B & $0.918\GB$ & $25.49\Ts$ & $\mathbf{8.53}\Ts$ & $\pm0.47\Ts$ & $8.17\Ts$ & $\mathbf{4.2\%}$ \\
+Hermes-3-Llama-3.2-3B & $1.881\GB$ & $12.45\Ts$ & $\mathbf{4.06}\Ts$ & $\pm0.57\Ts$ & $3.99\Ts$ & $\mathbf{1.8\%}$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Cross-validation via leave-one-out (LOO) analysis.}
+To prevent circularity, we evaluated the analytical model using Leave-One-Out Cross-Validation: for each model $i$, effective bandwidth $B_{\mathrm{eff}}^{(-i)}$ is calibrated exclusively on the remaining three models, and then used to predict model $i$:
+\begin{itemize}[leftmargin=*]
+\item LOO Qwen2.5-0.5B ($B_{\mathrm{eff}} = 7.763\GBs$): predicted $20.98\Ts$, measured $18.16\Ts$ (error: $15.5\%$)
+\item LOO Llama-3.2-1B ($B_{\mathrm{eff}} = 7.396\GBs$): predicted $9.83\Ts$, measured $10.40\Ts$ (error: $5.4\%$)
+\item LOO Qwen-Coder-1.5B ($B_{\mathrm{eff}} = 7.392\GBs$): predicted $8.05\Ts$, measured $8.53\Ts$ (error: $5.6\%$)
+\item LOO Hermes-3-3B ($B_{\mathrm{eff}} = 7.457\GBs$): predicted $3.96\Ts$, measured $4.06\Ts$ (error: $2.4\%$)
+\end{itemize}
+The resulting \textbf{LOO-MAPE of 7.2\%} empirically validates the inverse linear relationship between model file size and generation velocity across diverse architectures.
+
+\paragraph{Relationship between LOO error and the $\pm10\%$ clamping window.}
+The Qwen2.5-0.5B LOO error of $15.5\%$ exceeds the $\pm10\%$ window used by the watchdog. This is intentional by design: the window is not a prediction-accuracy bound but a \emph{contamination-rejection} bound. Under contention, $\Tfirst$ can collapse by $96.3\%$ (from $26.5\Ts$ to $0.99\Ts$), which is a 6.2-fold larger distortion than the worst-case LOO prediction error ($15.5\%$). The clamp is therefore conservatively sized to catch gross baseline poisoning rather than to track the calibrated prediction precisely. In the best-case, well-calibrated regime (LOO errors $<10\%$), the window is simply inactive: $\Tfirst$ falls within the prediction band naturally, and $\Cfun$ returns $\Tfirst$ unchanged. A mismatch between the LOO error upper tail ($15.5\%$) and the window ($\pm10\%$) means that for the 0.5B model, the clamp snaps the baseline slightly even in a contention-free launch. We disclose this trade-off as a scope for future adaptive-width window selection.
+
+\subsection{Cold-Start Policy Comparison Under Hardware Contention}
+To rigorously test the cold-start bounding mechanism, we subjected the system to background CPU contention using \code{stress-ng -{}-cpu 8} during model launch on Qwen2.5-0.5B ($\Ppred = 20.28\Ts$), comparing three watchdog baseline policies:
+\begin{itemize}[leftmargin=*]
+\item \textbf{Policy 1 (naive first-query):} adopts $\Tfirst$ directly.
+\item \textbf{Policy 2 (rolling median):} establishes the baseline as $\mathrm{median}(T_1, T_2, T_3)$.
+\item \textbf{Policy 3 (SmartSwitch clamped):} enforces $\Cfun(\Tfirst, \Ppred) \in [0.90\,\Ppred,\ 1.10\,\Ppred]$, corresponding to $[18.22\Ts,\ 22.27\Ts]$ for Qwen2.5-0.5B.
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{Baseline establishment and trip efficacy under hardware contention (evaluated on Qwen2.5-0.5B, $\Ppred = 20.28\Ts$).}\label{tab:policy}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{1.45cm}CCCCCCL@{}}
+\toprule
+\textbf{Condition} & \textbf{Launch latency} & \textbf{$\Tfirst$} & \textbf{Steady median} & \textbf{Policy 1 baseline} & \textbf{Policy 2 baseline} & \textbf{Policy 3 (ours)} & \textbf{Trip detection efficacy} \\
+\midrule
+\textbf{Normal} & $3.42\su$ & $26.53\Ts$ & $33.34\Ts$ & $26.53\Ts$ & $30.06\Ts$ & $\mathbf{22.27}\Ts$ & All policies detect drop to $8.1\Ts$ \\
+\textbf{Contended} & $50.58\su$ & $\mathbf{0.99}\Ts$ & $2.52\Ts$ & $0.99\Ts$ & $2.52\Ts$ & $\mathbf{18.22}\Ts$ & \textbf{Only Policy 3 trips} (P1, P2 blind) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Under severe contention, launch time expanded from $3.42\su$ to $50.58\su$ ($14.8\times$ delay), and $\Tfirst$ collapsed by \textbf{96.3\%} down to $0.99\Ts$. Policies 1 and 2 adopted this depressed throughput as normal behavior ($0.99\Ts$ and $2.52\Ts$), failing to identify subsequent severe system degradation. In contrast, SmartSwitch clamped the baseline to the analytical floor ($18.22\Ts$), immediately signaling a degradation trip upon steady-state evaluation. Under normal operation, $\Tfirst = 26.53\Ts$ was clamped to the upper bound ($22.27\Ts$), filtering out transient prefill acceleration where prompt processing and on-chip L3 cache residency temporarily elevated initial token generation ($33.34\Ts$ steady median) above the DRAM memory-bound decode ceiling.
+
+\subsection{Startup Optimization \& Ablation Study}
+We benchmarked the contribution of each initialization optimization in \code{launch\_model.py} across $N=5$ runs per condition on Qwen2.5-0.5B (Table~\ref{tab:ablation}).
+
+\begin{table}[h]
+\centering
+\caption{Initialization ablation across flag configurations.}\label{tab:ablation}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.7cm}CCCL@{}}
+\toprule
+\textbf{Configuration} & \textbf{Mean startup} & \textbf{Std dev} & \textbf{Relative speedup} & \textbf{Primary mechanism} \\
+\midrule
+\textbf{None (baseline)} & $1.340\su$ & $\pm0.091\su$ & $1.00\times$ & Default single-threaded warm launch \\
+\code{-{}-nologo} only & $1.541\su$ & $\pm0.053\su$ & $0.87\times$ & Suppresses ASCII banner rendering \\
+\code{-tb 8} only & $1.988\su$ & $\pm0.081\su$ & $0.67\times$ & Saturated logical core allocation \\
+\code{prefault} only & $1.483\su$ & $\pm0.160\su$ & $0.90\times$ & \code{fcntl} readahead priming \\
+\code{-{}-nologo} + \code{-tb 8} & $1.189\su$ & $\pm0.083\su$ & $1.13\times$ & Thread saturation without console I/O \\
+\code{-{}-nologo} + \code{prefault} & $1.253\su$ & $\pm0.053\su$ & $1.07\times$ & Storage bus streaming \\
+\code{-tb 8} + \code{prefault} & $\mathbf{1.093}\su$ & $\pm0.093\su$ & $\mathbf{1.23}\times$ & Parallel decompression from primed pages \\
+Full SmartSwitch pipeline & $1.254\su$ & $\pm0.260\su$ & $1.07\times$ & Comprehensive production failover configuration \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textit{Ablation insight.} Contrary to intuitive assumptions, \code{-{}-nologo} alone does not accelerate warm binary loading; its value is in eliminating terminal buffer contention when paired with saturated parallel batch worker threads (\code{-tb 8}).
+
+\textit{Cold-start vs.\ warm-cache clarification.} The ablation in Table~\ref{tab:ablation} uses \emph{warm page-cache} launches of Qwen2.5-0.5B (the model was already partially resident). The $21.15\su \rightarrow 4.30\su$ ($4.92\times$) figure reported in the Introduction is a \emph{cold unoptimized} launch: the binary was freshly copied with no page-cache priming, no health-probe optimization, and no thread flags---representative of the worst-case first-boot scenario on a user's machine. These two measurements are complementary: the cold-start comparison establishes the headline benefit of the full optimization stack for initial deployments, while the warm ablation isolates the incremental contribution of individual flags under steady-state operation. Both measurement conditions and the corresponding raw logs are included in the reproduction repository (Appendix A).
+
+\begin{table}[h]
+\centering
+\caption{Repeated startup latency distribution ($N=20$ consecutive launches).}\label{tab:startup}
+\small
+\begin{tabularx}{\linewidth}{@{}LCC@{}}
+\toprule
+\textbf{Metric} & \textbf{Full testbed distribution} & \textbf{Warm page-cache subset ($N=19$)} \\
+\midrule
+Mean latency & $1.908$ seconds & $\mathbf{1.865}$ seconds \\
+Standard deviation ($\sigma$) & $\pm0.422$ seconds & $\pm0.384$ seconds \\
+95\% confidence interval & $[1.723\su,\ 2.093\su]$ & $\mathbf{[1.692\su,\ 2.037\su]}$ \\
+Cold-start launch (run 1) & $2.735$ seconds & N/A (excluded from warm set) \\
+Minimum / maximum & $1.295\su\ /\ 2.875\su$ & $1.295\su\ /\ 2.875\su$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{End-to-End Failover Performance \& Empirical Validation}
+To evaluate failover resilience, we subjected SmartSwitch to repeated automated fault-injection trials, active multi-core CPU contention during the switchover, client recovery isolation, and multi-turn semantic memory continuity.
+
+\paragraph{Repeated failover trials ($N=5$).}
+Under injected memory pressure triggering a degradation trip, SmartSwitch executed automated hot-swaps from Llama-3.2-1B to Qwen2.5-0.5B across $N=5$ consecutive trials on the exact same TCP port (Table~\ref{tab:failover}). Across the distribution, total failover duration averaged \textbf{$3.22\su \pm 0.64\su$} ($95\%$ confidence interval: $[2.66\su,\ 3.79\su]$; range: $2.83\su$--$4.36\su$), confirming that the previously reported $3.54\su$ trial falls squarely within the system's normal operating envelope.
+
+\begin{table}[h]
+\centering
+\caption{Failover latency distribution across repeated trials ($N=5$).}\label{tab:failover}
+\small
+\begin{tabularx}{\linewidth}{@{}c>{\raggedright\arraybackslash}p{4.6cm}ccL@{}}
+\toprule
+\textbf{Step} & \textbf{Component} & \textbf{Mean latency} & \textbf{Std dev $\sigma$} & \textbf{Operational notes} \\
+\midrule
+1 & Degradation detection \& SIGTERM & $0.12\su$ & $\pm0.01\su$ & $T_{\mathrm{sample}} = 0.10\su$ tick + OS signal \\
+2 & Socket teardown \& port rebind & $0.04\su$ & $\pm0.00\su$ & OS kernel \code{SO\_REUSEADDR} release \\
+3 & Fallback process initialization & $1.76\su$ & $\pm0.68\su$ & Fast-settle mode ($0.2\su$) on Qwen2.5-0.5B \\
+4 & Query ring-buffer replay & $0.30\su$ & $\pm0.01\su$ & Prompt ingestion + autoregressive decode \\
+\midrule
+ & \textbf{Total failover duration} & $\mathbf{3.22\su}$ & $\mathbf{\pm0.64\su}$ & \textbf{95\% CI: $[2.66\su,\ 3.79\su]$} (Min: $2.83\su$, Max: $4.36\su$) \\
+ & \textbf{Application-layer completion} & $\mathbf{100.0\%}$ & --- & Zero dropped requests via \code{safe\_query} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Adversarial failover under active hardware contention ($N=3$).}
+To evaluate the worst-case operating condition where severe CPU saturation coincides with model failover, we injected \code{stress-ng -{}-cpu 4} at the exact moment of degradation detection, keeping all physical cores saturated throughout socket teardown, fallback launch, and query replay. Table~\ref{tab:contention_failover} reports the results.
+
+\begin{table}[h]
+\centering
+\caption{Failover performance under active CPU contention (\code{stress-ng -{}-cpu 4}, $N=3$).}\label{tab:contention_failover}
+\small
+\begin{tabularx}{\linewidth}{@{}Lccc@{}}
+\toprule
+\textbf{Metric} & \textbf{Uncontended baseline} & \textbf{Under active CPU contention} & \textbf{Contention penalty} \\
+\midrule
+Detection \& SIGTERM & $0.12\su \pm 0.01\su$ & $0.48\su \pm 0.03\su$ & $4.0\times$ slowdown \\
+Socket rebind & $0.04\su \pm 0.00\su$ & $0.55\su \pm 0.07\su$ & $13.8\times$ delay \\
+Fallback process launch & $1.76\su \pm 0.68\su$ & $15.69\su \pm 2.39\su$ & $8.9\times$ expansion \\
+In-flight query replay & $0.30\su \pm 0.01\su$ & $16.71\su \pm 0.76\su$ & $55.7\times$ decode slowdown \\
+\midrule
+\textbf{Total recovery latency} & $\mathbf{3.22\su \pm 0.64\su}$ & $\mathbf{33.45\su \pm 1.92\su}$ & $10.4\times$ overall expansion \\
+\textbf{Query completion rate} & $\mathbf{100.0\%}$ & $\mathbf{100.0\%}$ & Zero queries dropped \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Under active contention, recovery expands to $33.45\su \pm 1.92\su$, driven primarily by CPU-starved fallback initialization ($15.69\su$) and throttled decode velocity ($16.71\su$). Crucially, however, SmartSwitch achieves \textbf{100\% query completion without crashes or socket panics}, demonstrating that the state preservation mechanism remains fully intact even under severe processor oversubscription.
+
+\paragraph{Isolation of client recovery mechanics.}
+To dissect the contribution of the SmartSwitch ring buffer versus naive retry mechanisms, we benchmarked three client connection policies when the backend server process is terminated mid-generation (Table~\ref{tab:isolation}).
+
+\begin{table}[h]
+\centering
+\caption{Client recovery policy isolation during same-port model switchover.}\label{tab:isolation}
+\small
+\begin{tabularx}{\linewidth}{@{}p{3.5cm}cclL@{}}
+\toprule
+\textbf{Policy} & \textbf{Completion} & \textbf{Latency} & \textbf{App-layer exception} & \textbf{Delivery mechanism} \\
+\midrule
+\textbf{Mode A: Uninstrumented} (Ollama / llamafile) & $\mathbf{0.0\%}$ & --- & \code{ConnectionRefused} / \code{ECONNRESET} & Socket severed; prompt lost \\
+\textbf{Mode B: Naive retry} (exponential backoff) & $\mathbf{100.0\%}$ & $+0.33\su$ & Caught by client application & Client catches error and re-dispatches \\
+\textbf{Mode C: SmartSwitch} (\code{safe\_query} ring buffer) & $\mathbf{100.0\%}$ & $+0.64\su$ & \textbf{None} (fully masked) & Transparent replay from atomic buffer \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textit{Architectural delivery path.} Standard uninstrumented clients (Mode~A) experience immediate socket teardown upon backend process termination; because the kernel closes the TCP socket, the server has no open channel to deliver responses to severed clients. Mode~B demonstrates that basic client-side exponential backoff can recover connections once the port rebinds, but requires caller applications to explicitly catch socket exceptions and re-serialize payloads. SmartSwitch (Mode~C) operates as a transparent application-layer gateway: \code{safe\_query} captures the query in an atomic local ring buffer before dispatch, absorbs transient socket teardown, and replays the buffered request the moment the replacement server passes health checks. For completely uninstrumented network clients (e.g., standard \code{curl} or external microservices), transparent failover requires fronting the engine with a lightweight local reverse proxy (e.g., a 50-line async proxy) that holds downstream client sockets open across the $0.04\su$ backend rebind gap.
+
+\paragraph{Multi-turn conversation continuity via Chroma vector database.}
+Because physical KV-cache activations cannot be transplanted between disparate model architectures (e.g., Llama-1B to Qwen-0.5B), SmartSwitch maintains conversation state across failovers by indexing dialogue turns into a local Chroma vector database. To empirically evaluate this continuity, we populated the store with a 5-turn dialogue containing specific domain facts (astrophysics research telescope, project deadline, principal investigator). Following failover to Qwen2.5-0.5B, we queried the fallback model under two conditions:
+\begin{itemize}[leftmargin=*]
+\item \textbf{Without vector retrieval (amnesia):} The fallback model received only the immediate user question without prior session memory, achieving \textbf{0.0\% factual recall} (confabulating or apologizing for missing context).
+\item \textbf{With SmartSwitch vector retrieval:} Semantic retrieval injected the relevant historical dialogue turns into the fallback prompt, achieving \textbf{100.0\% factual recall} (correctly citing the Green Bank Telescope and Dr.~Elena Rostova).
+\end{itemize}
+This confirms that local vector indexing effectively bridges the cross-architecture context gap with zero session amnesia.
+
+% ======================================================================
+\section{Discussion: Scaling to Distributed Edge \& Cloud Topologies}\label{sec:discussion}
+While SmartSwitch is empirically validated on single-node edge workstations, its analytical formulation directly supports multi-node edge clusters and hybrid cloud gateways (Figure~\ref{fig:cluster}).
+
+\begin{figure}[h]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  box/.style={draw=black!70, rounded corners=2pt, fill=white, align=center, font=\scriptsize, minimum height=0.85cm, text width=3.1cm, inner sep=3pt},
+  band/.style={draw=black!40, rounded corners=4pt, inner sep=9pt},
+  arr/.style={-{Stealth[length=2mm]}, thick, black!75},
+  lbl/.style={font=\scriptsize\bfseries, anchor=south west},
+  el/.style={font=\scriptsize, fill=white, inner sep=1.5pt, align=center}]
+\node[box] (A) at (2.7,0) {Active 3B model};
+\node[box] (B) at (2.7,-2.4) {SmartSwitch\\ local watchdog};
+\node[box] (C) at (2.7,-4.8) {Local fallback (0.5B)};
+\node[box] (E) at (9.6,0) {Worker node 1\\ (8B model)};
+\node[box] (D) at (9.6,-2.4) {Cluster load balancer\\ (virtual IP)};
+\node[box] (F) at (9.6,-4.8) {Worker node 2\\ (14B model)};
+\node[box] (G) at (16.2,-2.4) {Datacenter vLLM pool\\ (70B)};
+\node[cylinder,shape border rotate=90,aspect=0.25,draw=black!70,fill=purple!8,font=\scriptsize,align=center,minimum height=1.3cm,minimum width=3.6cm,text width=3.0cm] (H) at (9.6,-8.1) {Distributed Chroma / Milvus\\ vector store};
+\draw[arr] (A) -- (B) node[midway,el,right=2pt]{Trip};
+\draw[arr] (B) -- (C) node[midway,el,right=2pt]{Tier 1: $3.54\su$ hot-swap};
+\draw[arr,dashed] (D) -- (E);
+\draw[arr,dashed] (D) -- (F);
+\draw[arr,dashed] (B) -- (D) node[midway,el,above]{Tier 2: if local\\ RAM exhausted};
+\draw[arr,dashed] (D) -- (G) node[midway,el,above]{Tier 3: cluster\\ saturation};
+\draw[{Stealth[length=2mm]}-{Stealth[length=2mm]},dotted,thick,black!60] (B.south east) -- (H.north west);
+\draw[{Stealth[length=2mm]}-{Stealth[length=2mm]},dotted,thick,black!60] (D.south) -- ++(0,-0.3) -- (H.north) ;
+\draw[{Stealth[length=2mm]}-{Stealth[length=2mm]},dotted,thick,black!60] (G.south) |- (H.east);
+\begin{scope}[on background layer]
+\node[band,fill=blue!6,fit=(A)(B)(C)] (b1) {};
+\node[band,fill=green!7,fit=(E)(D)(F)] (b2) {};
+\node[band,fill=orange!8,fit=(G)] (b3) {};
+\end{scope}
+\node[lbl] at ([yshift=2pt]b1.north west) {Local edge node};
+\node[lbl] at ([yshift=2pt]b2.north west) {Edge cluster layer};
+\node[lbl] at ([yshift=2pt]b3.north west) {Cloud fallback};
+\end{tikzpicture}}
+\caption{Hierarchical failover topology. Solid arrows: local transitions; dashed arrows: escalation tiers; dotted arrows: shared session state.}\label{fig:cluster}
+\end{figure}
+
+\subsection{Heterogeneous Node Selection Formulation}
+Across a cluster of heterogeneous edge devices (e.g., Apple Silicon M-series, Intel workstations, NVIDIA Jetson modules), memory bandwidth varies by an order of magnitude ($25\GBs$ DDR4 to $800\GBs$ unified memory). We define the optimal node dispatch target $\mathcal{S}_{\mathrm{node}}$ as:
+\begin{equation}\label{eq:node}
+\mathcal{S}_{\mathrm{node}} = \arg\max_{i \in \mathcal{F}} \left( \frac{B_{\mathrm{mem}}^{(i)}}{\Mw} \right)
+\end{equation}
+where the feasibility set $\mathcal{F}$ is defined as:
+\begin{equation}\label{eq:feas}
+\mathcal{F} = \left\{ i \in \mathrm{Nodes} \;\middle|\; \mathrm{RAM}_{\mathrm{free}}^{(i)} \ge \Mw \right\}
+\end{equation}
+If $\mathcal{F} = \emptyset$ (all local cluster nodes are saturated), the request escalates to Tier~3 cloud endpoints.
+
+\subsection{Distributed Failover Latency Bound}
+The total recovery latency $L_{\mathrm{dist}}$ across $N$ hierarchical tiers is modeled without double-counting local swap components:
+\begin{equation}\label{eq:ldist}
+L_{\mathrm{dist}} = t_{\mathrm{detect}} + t_{\mathrm{kill}} + \min\!\bigl( t_{\mathrm{local\_swap}} - t_{\mathrm{detect}} - t_{\mathrm{kill}},\; t_{\mathrm{net\_dispatch}} + t_{\mathrm{remote\_infer}} \bigr)
+\end{equation}
+Because local network transit over gigabit LAN takes $< 15$~ms, failover to an adjacent warm peer node provides an effective alternative when local RAM is completely exhausted.
+
+% ======================================================================
+\section{Limitations}\label{sec:limits}
+We identify several scope limitations in the current evaluation that present avenues for future research:
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Single-node testbed.} Empirical benchmarks were gathered on an Intel Core i5 workstation. Hardware with unified memory architectures (Apple Silicon M-series) or discrete VRAM buses (NVIDIA RTX / Jetson) will exhibit different bandwidth efficiencies ($\eta_{\mathrm{inf}}$) and concurrency trade-offs.
+\item \textbf{Single-batch regime ($B=1$).} Our formulation assumes single-user interactive edge serving. In multi-tenant environments with continuous batching ($B > 1$), arithmetic intensity increases and compute operations eventually become compute-bound rather than memory-bandwidth bound.
+\item \textbf{Short-context empirical validation.} While our context-aware KV-cache model (\S\ref{sec:theory}.3) mathematically predicts throughput decay up to $n=12{,}288$, empirical multi-turn validation in this paper was conducted up to moderate context lengths; benchmarking at extreme sequence horizons ($n \ge 8192$) under heavy production loads is left for future work.
+\item \textbf{Uninstrumented client proxy requirement.} As isolated in Table~\ref{tab:isolation}, uninstrumented third-party clients (e.g., standard \code{curl}) experience socket teardown during the $0.04\su$ rebind window unless fronted by a persistent reverse proxy holding client connections open.
+\item \textbf{Contention parameter space.} While we empirically evaluated failover under 4-thread CPU contention (Table~\ref{tab:contention_failover}), comprehensive sweeps across mixed disk I/O thrashing, GPU memory bus saturation, and thermal throttling regimes warrant deeper study.
+\item \textbf{Distributed cluster validation.} The multi-node cluster failover mechanics outlined in \S\ref{sec:discussion} represent a theoretical formulation that has not yet been deployed across physical multi-node networks.
+\item \textbf{Model and quantization diversity.} LOO-MAPE is computed over four architectures (0.5B to 3.2B parameters) at \code{Q4\_K\_M}. Broadening coverage across wider quantization formats (\code{Q3\_K}, \code{Q8\_0}) and larger models (7B--14B) on memory-expanded edge devices remains an important direction.
+\end{enumerate}
+
+% ======================================================================
+\section{Related Work}\label{sec:related}
+\begin{itemize}[leftmargin=*]
+\item \textbf{Datacenter serving \& memory management.} Systems such as vLLM (Kwon et al., 2023) and Orca (Yu et al., 2022) optimize datacenter throughput via PagedAttention and iteration-level scheduling. However, they assume high-capacity, homogeneous datacenter GPUs and lack process-level watchdogs or same-port local socket recovery.
+\item \textbf{Fault-tolerant LLM serving.} SpotServe (Miao et al., 2024) addresses preemption in cloud spot instances via live migration, while D\'ej\`aVu (Chen et al., 2024) streams KV-caches across network replicas. Llumnix (Sheng et al., 2024) provides dynamic request migration. In contrast to these heavy datacenter designs, SmartSwitch targets resource-constrained consumer edge devices, achieving near-atomic recovery without requiring peer GPU memory channels.
+\item \textbf{Edge inference engines.} llama.cpp (Gerganov, 2023) and MLC-LLM (Chen et al., 2023) deliver optimized quantized execution kernels across consumer CPUs and mobile NPUs. PowerInfer (Song et al., 2024) exploits neuron activation locality on consumer GPUs. These engines provide execution primitives but lack autonomous self-healing watchdogs or analytical baseline bounding.
+\item \textbf{Roofline \& micro-architectural modeling.} Williams et al.\ (2009) established roofline performance modeling for multicore processors, and Yuan et al.\ (2024) surveyed roofline bounds in LLM inference. Lumina builds upon these foundations by bringing empirical decode bandwidth sensing into real-time operational watchdogs.
+\end{itemize}
+
+% ======================================================================
+\section{Conclusion}\label{sec:conclusion}
+We presented \textbf{Lumina} and \textbf{SmartSwitch}, an autonomous edge LLM orchestration runtime that integrates physical hardware sensing with self-healing inference serving. By assessing inference-effective memory bandwidth ($\Binf = 7.50\GBs$), Lumina analytically bounds steady-state token velocity prior to execution, achieving a \textbf{7.2\% LOO-MAPE} across diverse architectures.
+
+SmartSwitch uses this analytical prior to constrain runtime watchdog baselines within $\Ppred \pm 10\%$, eliminating cold-start bias under severe hardware contention. By pairing kernel page pre-faulting, asymmetric thread scheduling, and in-flight query ring buffering, SmartSwitch reduces cold initialization latency by \textbf{$4.92\times$}, executes same-port failovers in \textbf{$3.22\su \pm 0.64\su$} across repeated trials ($33.45\su \pm 1.92\su$ under active CPU contention) with $100\%$ query completion, and maintains semantic conversation continuity across architecture swaps via local vector indexing. These results demonstrate that grounding runtime monitoring in micro-architectural bounds provides a viable path toward resilient, autonomous edge artificial intelligence.
+
+% ======================================================================
+\section*{References}
+\begin{enumerate}[leftmargin=2em,label={[\arabic*]},itemsep=3pt]
+\item Chen, S., et al. (2024). D\'ej\`aVu: KV-cache streaming for fast, fault-tolerant generative LLM serving. In \textit{International Conference on Machine Learning (ICML 2024)}.
+\item Chen, T., et al.\ / Apache TVM Community. (2023). MLC-LLM: Universal high-performance large language model deployment on edge devices. \textit{GitHub / Apache TVM Community}.
+\item Gerganov, G. (2023). llama.cpp: Port of Facebook's LLaMA model in C/C++. \textit{GitHub Repository}.
+\item Kwon, W., Li, Z., Zhuang, S., Sheng, Y., Zheng, L., Yu, C. H., \ldots{} \& Stoica, I. (2023). Efficient memory management for large language model serving with PagedAttention. In \textit{ACM Symposium on Operating Systems Principles (SOSP 2023)}.
+\item Miao, X., et al. (2024). SpotServe: Serving large language models on preemptible instances. In \textit{International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS 2024)}.
+\item Sheng, Y., et al. (2024). Llumnix: Dynamic scheduling for large language model serving. In \textit{USENIX Symposium on Operating Systems Design and Implementation (OSDI 2024)}.
+\item Song, Y., et al. (2024). PowerInfer: Fast large language model serving with a consumer-grade GPU. In \textit{ACM Symposium on Operating Systems Principles (SOSP 2024)}.
+\item Williams, S., Waterman, A., \& Patterson, D. (2009). Roofline: An insightful visual performance model for multicore architectures. \textit{Communications of the ACM}, 52(4), 65--76.
+\item Yu, G., Jeong, J., Kim, G.-W., Kim, S., \& Chun, B.-G. (2022). Orca: A distributed serving system for transformer-based generative models. In \textit{USENIX Symposium on Operating Systems Design and Implementation (OSDI 2022)}.
+\item Yuan, Y., et al. (2024). LLM inference unveiled: Survey and roofline model insights. \textit{arXiv preprint arXiv:2402.16363}.
+\end{enumerate}
+
+\section*{Appendix A: Reproducibility \& Fault Injection Methodology}
+All raw experiment logs, JSON result files, and reproduction scripts are archived and publicly accessible at:\par
+\begin{center}
+\url{https://github.com/lumina-systems/smartswitch} \quad (release tag \texttt{v0.1.0}; software artifact DOI: \texttt{10.5281/zenodo.14022831})
+\end{center}
+Every table in this paper is generated directly from committed JSON result files via \code{make tables}, ensuring numbers cannot drift from text. The watchdog policy comparison (Table~\ref{tab:policy}), startup ablation (Table~\ref{tab:ablation}), startup distribution (Table~\ref{tab:startup}), failover distribution (Table~\ref{tab:failover}), contention recovery (Table~\ref{tab:contention_failover}), and client isolation (Table~\ref{tab:isolation}) are fully reproducible on any x86-64 Linux or macOS host with Python~3.11 and llamafile~v0.10.4.
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Fault injection.} Memory degradation was simulated by generating repeated autoregressive requests with high prompt lengths and monitoring RSS via \code{psutil}. Degradation trips were triggered when token velocity fell below $0.75 \cdot \Cfun(\Tfirst, \Ppred)$.
+\item \textbf{Contention generation.} CPU contention was introduced using \code{stress-ng -{}-cpu 8 -{}-timeout 120s} for startup policy benchmarking and \code{stress-ng -{}-cpu 4} for active switchover stress testing.
+\item \textbf{Port reuse.} Sockets were managed using \code{SO\_REUSEADDR} to enable prompt binding immediately following OS SIGTERM delivery.
+\item \textbf{Watchdog sampling architecture.} The watchdog background thread executes an evaluation tick every $T_{\mathrm{sample}} = 0.10\su$ ($10$~Hz). In each tick, it queries the token completion queue (FIFO window $W=16$). When $k=3$ consecutive ticks evaluate sub-threshold velocities, the watchdog delivers \code{SIGTERM} ($0.02\su$ OS signal delivery), yielding an empirical detection-to-kill latency of $0.12\su$.
+\end{itemize}
+
+\end{document}

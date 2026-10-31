@@ -14,13 +14,19 @@ TOOLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "gene
 def main(filename, code):
     """Write code to a file and run it in a subprocess."""
     try:
-        # Sanitize filename — no path traversal, must end in .py
-        filename = os.path.basename(filename)
-        if not filename.endswith(".py"):
-            filename += ".py"
-
-        os.makedirs(TOOLS_DIR, exist_ok=True)
-        script_path = os.path.join(TOOLS_DIR, filename)
+        # Normalize leading slash if model omitted it for /Users/...
+        if filename.startswith("Users/"):
+            filename = "/" + filename
+            
+        # If path provided, use it directly; otherwise save to TOOLS_DIR
+        if "/" in filename or "\\" in filename:
+            script_path = os.path.abspath(filename)
+            os.makedirs(os.path.dirname(script_path), exist_ok=True)
+        else:
+            if not filename.endswith(".py"):
+                filename += ".py"
+            os.makedirs(TOOLS_DIR, exist_ok=True)
+            script_path = os.path.join(TOOLS_DIR, filename)
 
         # Write the code
         with open(script_path, "w", encoding="utf-8") as f:

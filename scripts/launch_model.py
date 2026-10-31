@@ -4,11 +4,71 @@ import subprocess
 import sys
 import time
 import argparse
+import urllib.request
+import json
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
+
+
+def get_hardware_concurrency():
+    """Returns optimal (threads_eval, threads_batch) to maximize PC throughput."""
+    logical = os.cpu_count() or 4
+    try:
+        import psutil
+        physical = psutil.cpu_count(logical=False) or (logical // 2)
+    except Exception:
+        physical = max(1, logical // 2)
+    # Batch threads use all logical cores for maximum parallel prompt processing
+    return max(1, physical), max(1, logical)
+
+
+def prefault_model_weights(filepath, chunk_mb=64):
+    """
+    Pre-faults model weights into OS page cache to eliminate cold-start page-fault stalls.
+    Maximizes I/O bus throughput before server starts.
+    """
+    if not os.path.exists(filepath):
+        return
+    try:
+        with open(filepath, "rb") as f:
+            fd = f.fileno()
+            if hasattr(os, "posix_fadvise"):
+                os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_WILLNEED)
+            elif sys.platform == "darwin":
+                try:
+                    import fcntl
+                    # F_RDAHEAD enables aggressive sequential readahead in macOS kernel
+                    fcntl.fcntl(fd, 45, 1)
+                except Exception:
+                    pass
+            # Touch header and first chunks to prime kernel buffer cache
+            _ = f.read(chunk_mb * 1024 * 1024)
+    except Exception:
+        pass
+
+
+def is_port_available(port, host="127.0.0.1"):
+    """Checks if a TCP port is currently free to bind."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind((host, port))
+            return True
+        except socket.error:
+            return False
+
+
+def wait_for_port_free(port, host="127.0.0.1", timeout=2.0, poll_interval=0.02):
+    """Actively polls until a port is released by the operating system."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if is_port_available(port, host):
+            return True
+        time.sleep(poll_interval)
+    return is_port_available(port, host)
 
 
 def find_free_port():
@@ -18,9 +78,30 @@ def find_free_port():
         return s.getsockname()[1]
 
 
-def launchmodel(Modelname=None, port=None, host="127.0.0.1", startup_timeout=30.0, max_attempts=5):
+def check_server_health(port, host="127.0.0.1", timeout=0.1):
+    """Fast probe to check if llamafile server is responding to HTTP."""
+    url = f"http://{host}:{port}/health"
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            if response.status == 200:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def launchmodel(
+    Modelname=None,
+    port=None,
+    host="127.0.0.1",
+    startup_timeout=30.0,
+    max_attempts=5,
+    fast_init=False,
+    gpu_offload=True,
+):
     """
-    Launch a GGUF model via llamafile server.
+    Launch a GGUF model via llamafile server at maximum system potential.
 
     Parameters
     ----------
@@ -29,6 +110,8 @@ def launchmodel(Modelname=None, port=None, host="127.0.0.1", startup_timeout=30.
     host             : str   — Host address to bind to (default: 127.0.0.1)
     startup_timeout  : float — Seconds to wait for server ready signal (default: 30.0)
     max_attempts     : int   — Number of port-finding retry attempts (default: 5)
+    fast_init        : bool  — If True, minimizes settlement time for instant failover response
+    gpu_offload      : bool  — If True, passes --gpu auto and -ngl 999 to use full GPU/Metal
     """
 
     if Modelname is None:
@@ -43,10 +126,6 @@ def launchmodel(Modelname=None, port=None, host="127.0.0.1", startup_timeout=30.
             port = int(sys.argv[2])
         except ValueError:
             port = None
-
-    # Resolve project root from this script's location (scripts/ is one level deep)
-    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
     model_file = Modelname if Modelname.endswith(".gguf") else Modelname + ".gguf"
     base_model_name = Modelname[:-5] if Modelname.endswith(".gguf") else Modelname
@@ -75,87 +154,135 @@ def launchmodel(Modelname=None, port=None, host="127.0.0.1", startup_timeout=30.
             print(f"[!] Error: GGUF model file not found at: {path}")
             return None
 
+        # Pre-fault model weights into memory at maximum bus bandwidth
+        prefault_model_weights(path)
+
         log_dir = os.path.join(PROJECT_ROOT, "logs")
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+        os.makedirs(log_dir, exist_ok=True)
         log_file_path = os.path.join(log_dir, f"llamafile_{base_model_name}.log")
 
-        # Retry loop for port allocation if specific port is busy
-        poll_steps = max(1, int(startup_timeout / 0.2))
+        threads_eval, threads_batch = get_hardware_concurrency()
+
+        # Build optimized high-throughput flags
+        opt_flags = [
+            "--nologo",
+            "-c", "2048",
+            "-t", str(threads_eval),
+            "-tb", str(threads_batch),
+        ]
+        if gpu_offload:
+            opt_flags.extend(["--gpu", "auto", "-ngl", "999"])
+
+        ready_markers = (
+            "server is listening",
+            "HTTP server listening",
+            "model loaded",
+            "all slots are idle",
+        )
+
         for attempt in range(max_attempts):
-            allocated_port = int(port) if (port is not None and attempt == 0) else find_free_port()
+            if port is not None:
+                allocated_port = int(port)
+                # Ensure the designated port is actually unbound before spawning
+                wait_for_port_free(allocated_port, host=host, timeout=1.5)
+            else:
+                allocated_port = find_free_port()
+
             log_file = open(log_file_path, "w")
 
             if os.name == "nt":
                 cmd_args = [
                     llamafile_full_path,
                     "--server",
-                    "--host",
-                    host,
-                    "--port",
-                    str(allocated_port),
-                    "-m",
-                    path,
-                ]
+                    "--host", host,
+                    "--port", str(allocated_port),
+                    "-m", path,
+                ] + opt_flags
                 process = subprocess.Popen(
                     cmd_args, stdout=log_file, stderr=subprocess.STDOUT, text=True
                 )
             else:
-                shell_cmd = f"'{llamafile_full_path}' --server --host {host} --port {allocated_port} -m '{path}'"
+                extra_args_str = " ".join(opt_flags)
+                shell_cmd = (
+                    f"'{llamafile_full_path}' --server --host {host} "
+                    f"--port {allocated_port} -m '{path}' {extra_args_str}"
+                )
                 process = subprocess.Popen(
                     ["sh", "-c", shell_cmd],
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
                     text=True,
-
                 )
 
-            # Wait up to startup_timeout for server startup
+            # Fast low-latency polling (20ms intervals for rapid startup)
             started = False
-            ready_markers = ("server is listening", "HTTP server listening", "model loaded", "all slots are idle")
-            for _ in range(poll_steps):
-                time.sleep(0.2)
+            poll_interval = 0.02
+            deadline = time.time() + startup_timeout
+
+            while time.time() < deadline:
                 if process.poll() is not None:
-                    # Check log for port binding failure
+                    # Exited unexpectedly; check if port collision occurred
                     log_file.close()
                     with open(log_file_path, "r", encoding="utf-8", errors="ignore") as rf:
                         err_content = rf.read()
                         if "couldn't bind" in err_content or "Address already in use" in err_content:
-                            break  # retry on next port
+                            break  # retry on next attempt
                     break
-                else:
-                    # Check if server listening message appeared in log
+
+                # 1. Active HTTP health check
+                if check_server_health(allocated_port, host=host):
+                    started = True
+                    break
+
+                # 2. Check log file for ready signal
+                try:
                     with open(log_file_path, "r", encoding="utf-8", errors="ignore") as rf:
-                        log_content = rf.read()
-                        if any(marker in log_content for marker in ready_markers):
+                        content = rf.read()
+                        if any(marker in content for marker in ready_markers):
                             started = True
                             break
+                except Exception:
+                    pass
+
+                time.sleep(poll_interval)
 
             if started or process.poll() is None:
                 if not started:
                     print(f"[*] Model warming up (PID: {process.pid})")
-                print(f"[+] {base_model_name} · :{allocated_port} · PID {process.pid}")
+                print(f"[+] {base_model_name} · :{allocated_port} · PID {process.pid} (threads: {threads_eval}/{threads_batch})")
+
                 try:
-                    import urllib.request, json
                     data = json.dumps({"port": allocated_port}).encode('utf-8')
-                    req = urllib.request.Request("http://127.0.0.1:8080/api/modelport", data=data, headers={'Content-Type': 'application/json'})
-                    urllib.request.urlopen(req, timeout=2)
+                    req = urllib.request.Request(
+                        "http://127.0.0.1:8080/api/modelport",
+                        data=data,
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    urllib.request.urlopen(req, timeout=1.0)
                 except Exception:
                     pass
 
                 try:
                     import Smartswitch
+                    settle_time = 0.2 if fast_init else 1.0
                     Smartswitch.raminitilization(
                         base_model_name,
                         process.pid,
                         port=allocated_port,
                         log_file=log_file_path,
                         init_timeout=startup_timeout,
+                        settle_time=settle_time,
                     )
-                except Exception:
+                except Exception as ex:
                     pass
 
-                return {"pid": process.pid, "port": allocated_port, "process": process, "model": base_model_name, "log_file": log_file_path}
+                return {
+                    "pid": process.pid,
+                    "port": allocated_port,
+                    "process": process,
+                    "model": base_model_name,
+                    "log_file": log_file_path,
+                }
 
         print(f"[!] Server failed to start after multiple attempts. See error log: {log_file_path}")
         return None

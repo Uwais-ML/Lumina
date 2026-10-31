@@ -1,0 +1,1 @@
+color = 'blue'\nprint(f'hi owais\\1{color}')

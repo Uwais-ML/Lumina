@@ -265,9 +265,13 @@ public class LuminaWebServer {
             executor.submit(() -> {
                 try {
                    Process process = downloadmodel.downloadmodel(idToRun);
-                   process.waitFor();
-                    lastExitCode = 0;
-                    logLines.add("[Lumina] Model download completed successfully!");
+                   int code = process.waitFor();
+                   lastExitCode = code;
+                   if (code == 0) {
+                       logLines.add("[Lumina] Model download completed successfully!");
+                   } else {
+                       logLines.add("[Lumina ❌] Download process exited with code: " + code);
+                   }
                 } catch (Exception e) {
                     lastExitCode = 1;
                     logLines.add("[Lumina ❌] Exception during download: " + e.getMessage());

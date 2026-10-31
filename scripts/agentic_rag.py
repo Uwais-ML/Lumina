@@ -16,14 +16,11 @@ import sys
 import asyncio
 import argparse
 
-os.makedirs("Tools", exist_ok=True)
-folder_path = "Tools"
-
-logging.basicConfig(level=logging.INFO)
-
 # ── Bundled Python resolver (mirrors Lumina.py cross-platform detection) ──────
 _SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
+folder_path = os.path.join(_PROJECT_ROOT, "Tools")
+os.makedirs(folder_path, exist_ok=True)
 
 
 def get_bundled_python() -> str:
@@ -145,6 +142,14 @@ def argparser():
     )
     
     parser.add_argument(
+        "--timeout",
+        type=int,
+        default=120,
+        metavar="N",
+        help="Timeout in seconds for LLM query (default: 120)",
+    )
+
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -154,12 +159,29 @@ def argparser():
     return parser  # ← IMPORTANT: Return the parser!
 
 
-def classifyiftoolsneeded(query):
-    """Classify if tools needed."""
-    port = classifier.initialize()
-    
-    if classifier.Model_status and port is not None:
-        try:
+def get_all_tools():
+    """Returns headers of all available tools."""
+    tools = ""
+    abs_folder = os.path.abspath(folder_path)
+    if os.path.exists(abs_folder):
+        for filename in sorted(os.listdir(abs_folder)):
+            filepath = os.path.join(abs_folder, filename)
+            if os.path.isfile(filepath) and filename.endswith('.py'):
+                with open(filepath, "r", encoding="utf-8", errors="ignore") as file:
+                    for _ in range(6):
+                        line = file.readline()
+                        tools += line
+                        if not line:
+                            break
+    return tools if tools else None
+
+
+def classifyiftoolsneeded(query, timeout=60):
+    """Classify if tools needed. Falls back to all tools if classifier is unreachable."""
+    try:
+        port = classifier.initialize()
+        
+        if classifier.Model_status and port is not None:
             import Smartswitch
             payload = {
                 "model": "qwen",
@@ -176,35 +198,15 @@ def classifyiftoolsneeded(query):
                     }
                 ]
             }
-            response = Smartswitch.safe_query(port, payload=payload, timeout=40)
-            if response is None or response.status_code != 200:
-                return None
-            
-            decision = response.json()["choices"][0]["message"]["content"].strip().lower()
-            
-            if "not_tools" in decision or "not tools" in decision:
-                return None
-            
-            tools = ""
-            abs_folder = os.path.abspath(folder_path)
-            
-            for filename in os.listdir(abs_folder):
-                filepath = os.path.join(abs_folder, filename)
-                if os.path.isfile(filepath) and filename.endswith('.py'):
-                    with open(filepath, "r", encoding="utf-8", errors="ignore") as file:
-                        for _ in range(6):
-                            line = file.readline()
-                            tools += line
-                            if not line:
-                                break
-            
-            return tools if tools else None
-            
-        except Exception as e:
-            logging.error(f"Classification error: {e}")
-            return None
+            response = Smartswitch.safe_query(port, payload=payload, timeout=timeout)
+            if response is not None and response.status_code == 200:
+                decision = response.json()["choices"][0]["message"]["content"].strip().lower()
+                if "not_tools" in decision or "not tools" in decision:
+                    return None
+    except Exception as e:
+        logging.warning(f"Classification skipped or failed ({e}); falling back to all available tools.")
     
-    return None
+    return get_all_tools()
 
 
 def execute_tool(tool_call: str):
@@ -219,21 +221,25 @@ def execute_tool(tool_call: str):
         tool_name, args_str = match.groups()
         print(f"[EXEC] Tool: {tool_name}, Args: {args_str}")
         
-        # Parse arguments
-        args = []
-        for arg in args_str.split(','):
-            arg = arg.strip()
-            # Remove all types of quotes
-            if arg.startswith('"') and arg.endswith('"'):
+        # Parse arguments cleanly handling commas inside quotes
+        import csv
+        try:
+            parsed = next(csv.reader([args_str], skipinitialspace=True))
+            args = [a.strip() for a in parsed]
+        except Exception:
+            args = [arg.strip() for arg in args_str.split(',')]
+        
+        clean_args = []
+        for arg in args:
+            if (arg.startswith('"') and arg.endswith('"')) or (arg.startswith("'") and arg.endswith("'")):
                 arg = arg[1:-1]
-            elif arg.startswith("'") and arg.endswith("'"):
-                arg = arg[1:-1]
-            args.append(arg)
+            clean_args.append(arg)
+        args = clean_args
         
         print(f"[EXEC] Parsed args: {args}")
         
         # Find tool file
-        tool_file = os.path.join("Tools", f"{tool_name}.py")
+        tool_file = os.path.join(folder_path, f"{tool_name}.py")
         print(f"[EXEC] Looking for: {tool_file}")
         
         if not os.path.exists(tool_file):
@@ -263,13 +269,13 @@ def execute_tool(tool_call: str):
         return f"Error: {str(e)}"
 
 
-async def agentic(query, port, iterations=5, temp=0.1, max_tokens=256, verbose=False):
+async def agentic(query, port, iterations=5, temp=0.1, max_tokens=256, verbose=False, timeout=120):
     """Main agentic loop."""
     if verbose:
         print(f"\n[AGENTIC] Starting with query: {query}")
         print(f"[AGENTIC] Port: {port}, Iterations: {iterations}")
     
-    Tools = classifyiftoolsneeded(query)
+    Tools = classifyiftoolsneeded(query, timeout=min(timeout, 60))
     
     if not Tools:
         return {"status": "no_tools_needed", "query": query}
@@ -294,8 +300,8 @@ async def agentic(query, port, iterations=5, temp=0.1, max_tokens=256, verbose=F
                     {
                         "role": "system",
                         "content": """Output ONLY tool calls. Format: toolname(arg1,arg2)
-You only call Tool nothing else based on the query
-When all tasks done: DONE."""
+Select the best tool from Available Tools to satisfy the query.
+When the required task is done, output DONE."""
                     },
                     {
                         "role": "user",
@@ -303,7 +309,7 @@ When all tasks done: DONE."""
                     }
                 ]
             }
-            response = Smartswitch.safe_query(port, payload=payload, timeout=40)
+            response = Smartswitch.safe_query(port, payload=payload, timeout=timeout)
             if response is None or response.status_code != 200:
                 print(f"[!] Warning: Query failed or timed out during agent loop.")
                 break
@@ -315,38 +321,49 @@ When all tasks done: DONE."""
             lines = full_response.split('\n')
             executed_any = False
             
+            # Extract tool calls from standard toolname(...) or tool:/argument: format
+            tool_calls = []
+            curr_tool = None
+            curr_arg = None
+            
             for line in lines:
-                line = line.strip()
-                
-                # Skip empty lines, DONE, imports, assignments
-                if not line or "DONE" in line.upper():
+                sline = line.strip()
+                if not sline:
                     continue
-                
-                # Only accept lines that match: toolname(...)
-                if not re.match(r'^\w+\(.*\)$', line):
-                    if verbose:
-                        print(f"[SKIP] Not a tool call: {line}")
-                    continue
-                
+                match = re.search(r'(\b\w+)\((.*)\)', sline)
+                if match and not sline.lower().startswith("example:"):
+                    tool_calls.append(f"{match.group(1)}({match.group(2)})")
+                elif sline.lower().startswith("tool:"):
+                    curr_tool = sline.split(":", 1)[1].strip()
+                elif sline.lower().startswith("argument:") or sline.lower().startswith("arguments:"):
+                    curr_arg = sline.split(":", 1)[1].strip()
+                    if curr_tool and curr_arg:
+                        tool_calls.append(f"{curr_tool}({curr_arg})")
+                        curr_tool = None
+                        curr_arg = None
+                elif verbose and not re.match(r'^\w+\(.*\)$', sline):
+                    print(f"[SKIP] Not a tool call: {sline}")
+
+            for tool_call in tool_calls:
                 if verbose:
-                    print(f"[LLM] Decision: {line}")
+                    print(f"[LLM] Decision: {tool_call}")
                 
                 # Execute tool
-                tool_result = execute_tool(line)
+                tool_result = execute_tool(tool_call)
                 if verbose:
                     print(f"[RESULT] {tool_result}")
                 
-                whatsdone += f"\n→ {line}\n← {tool_result}"
+                whatsdone += f"\n→ {tool_call}\n← {tool_result}"
                 executed_any = True
             
             # Check if we're done
-            if "DONE" in full_response.upper():
+            if "DONE" in full_response.upper() or (executed_any and ("Success" in whatsdone or "Written:" in whatsdone)):
                 if verbose:
                     print(f"[AGENTIC] Task complete!")
                 return {
                     "status": "success",
                     "result": whatsdone,
-                    "iterations_used": 5 - iterations
+                    "iterations_used": 5 - iterations + 1
                 }
             
             iterations -= 1
@@ -385,6 +402,7 @@ if __name__ == "__main__":
         print(f"  Temperature: {args.temperature}")
         print(f"  Max tokens: {args.max_tokens}")
         print(f"  Iterations: {args.iterations}")
+        print(f"  Timeout: {args.timeout}")
         print(f"  Verbose: {args.verbose}")
         print(f"  Log level: {args.log_level}\n")
     
@@ -395,7 +413,8 @@ if __name__ == "__main__":
         iterations=args.iterations,
         temp=args.temperature,
         max_tokens=args.max_tokens,
-        verbose=args.verbose
+        verbose=args.verbose,
+        timeout=args.timeout
     ))
     
     print("RESULTS:")

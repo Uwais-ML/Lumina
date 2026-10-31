@@ -378,6 +378,18 @@
       border: 1px solid rgba(244, 63, 94, 0.3);
     }
 
+    .tag-rag {
+      background: rgba(16, 185, 129, 0.18);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .tag-agentic {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fcd34d;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
     .pros-cons {
       margin-bottom: 1.25rem;
       display: flex;
@@ -658,6 +670,12 @@
         <button class="filter-btn" data-quant="Q8">Q8</button>
       </div>
 
+      <div class="filter-group">
+        <button class="filter-btn active" data-usecase="all">All Modes</button>
+        <button class="filter-btn" data-usecase="rag">📚 Best for RAG</button>
+        <button class="filter-btn" data-usecase="agentic">🤖 Best for Agentic</button>
+      </div>
+
       <select class="select-dropdown" id="sortSelect">
         <option value="ts-desc">Sort by Speed (Fastest First)</option>
         <option value="param-asc">Sort by Size (Smallest First)</option>
@@ -692,7 +710,46 @@
     let modelsData = [];
     let activeParamFilter = 'all';
     let activeQuantFilter = 'all';
+    let activeUsecaseFilter = 'all';
     let currentBandwidth = 37.32;
+
+    function getModelUsecases(m) {
+      const name = (m.name || '').toLowerCase();
+      const pros = (m.pros || '').toLowerCase();
+      const filename = (m.filename_pattern || '').toLowerCase();
+      const text = name + ' ' + pros + ' ' + filename;
+      const cases = [];
+
+      // Agentic work: models fine-tuned for tool calling, function execution, agents, coding
+      if (
+        text.includes('hermes') ||
+        text.includes('qwen') ||
+        text.includes('deepseek') ||
+        text.includes('nemo') ||
+        text.includes('agentic') ||
+        text.includes('tool') ||
+        text.includes('coding')
+      ) {
+        cases.push('agentic');
+      }
+
+      // RAG work: models with high context, strong factual retrieval, NLP accuracy
+      if (
+        text.includes('nemo') ||
+        text.includes('gemma') ||
+        text.includes('phi-3') ||
+        text.includes('llama') ||
+        text.includes('mistral') ||
+        text.includes('qwen') ||
+        text.includes('rag') ||
+        text.includes('nlp') ||
+        text.includes('knowledge')
+      ) {
+        cases.push('rag');
+      }
+
+      return cases;
+    }
 
     // Fetch System Info & Models
     async function loadData() {
@@ -737,6 +794,12 @@
         // Quant filter
         if (activeQuantFilter === 'Q4' && !m.quantization.includes('Q4')) return false;
         if (activeQuantFilter === 'Q8' && !m.quantization.includes('Q8')) return false;
+
+        // Usecase filter (Best for RAG / Best for Agentic)
+        if (activeUsecaseFilter !== 'all') {
+          const cases = getModelUsecases(m);
+          if (!cases.includes(activeUsecaseFilter)) return false;
+        }
 
         return true;
       });
@@ -790,6 +853,8 @@
                 <span class="tag" style="background: rgba(168, 85, 247, 0.15); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.3);">
                   💾 ${(m.estimated_size_gb || 0).toFixed(2)} GB
                 </span>
+                ${getModelUsecases(m).includes('agentic') ? '<span class="tag tag-agentic">🤖 Agentic</span>' : ''}
+                ${getModelUsecases(m).includes('rag') ? '<span class="tag tag-rag">📚 RAG</span>' : ''}
               </div>
 
               <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #60a5fa; background: rgba(30, 58, 138, 0.25); padding: 0.35rem 0.6rem; border-radius: 6px; margin-bottom: 1.2rem; border: 1px solid rgba(96, 165, 250, 0.2); display: flex; align-items: center; justify-content: space-between;">
@@ -901,6 +966,7 @@
 
         if (e.target.dataset.param) activeParamFilter = e.target.dataset.param;
         if (e.target.dataset.quant) activeQuantFilter = e.target.dataset.quant;
+        if (e.target.dataset.usecase) activeUsecaseFilter = e.target.dataset.usecase;
         renderGrid();
       });
     });

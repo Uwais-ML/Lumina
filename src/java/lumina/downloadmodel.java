@@ -57,12 +57,17 @@ public class downloadmodel {
                 "models/"
             );
 
-            // Inject PYTHONPATH if site-packages exists
+            // Inject PYTHONPATH according to actual OS
             String pathSep = osName.contains("win") ? ";" : ":";
-            String spWin = baseDir + "/windows/Lib/site-packages";
-            String spMac = baseDir + "/macos-intel/lib/python3.12/site-packages";
-            String spTarget = new File(spWin).exists() ? spWin : (new File(spMac).exists() ? spMac : null);
-            if (spTarget != null) {
+            String spTarget = null;
+            if (osName.contains("win")) {
+                spTarget = baseDir + "/windows/Lib/site-packages";
+            } else if (osName.contains("mac")) {
+                spTarget = baseDir + "/macos-intel/lib/python3.12/site-packages";
+            } else {
+                spTarget = baseDir + "/linux-intel/lib/python3.12/site-packages";
+            }
+            if (spTarget != null && new File(spTarget).exists()) {
                 String existing = pb.environment().get("PYTHONPATH");
                 pb.environment().put("PYTHONPATH", spTarget + (existing != null ? pathSep + existing : ""));
             }

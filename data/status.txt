@@ -1,0 +1,52 @@
+{
+    "Llama-3.2-1B-Instruct-Q4_K_M": {
+        "PID": 48726,
+        "PORT": 50672,
+        "MODE": "ram",
+        "T/s": 0.0,
+        "PREDICTED_TPS": 38.77,
+        "BASELINE_TPS": 38.77,
+        "TPS_RANGE": [
+            34.89,
+            42.65
+        ],
+        "LOG_FILE": "/Users/apple/Lumina/logs/llamafile_Llama-3.2-1B-Instruct-Q4_K_M.log",
+        "INITIALIZED_AT": 1793376227.595881,
+        "RAM": "0.87 GB"
+    },
+    "Qwen2.5-0.5B-Instruct-Q4_K_M": {
+        "PID": 48789,
+        "PORT": 50891,
+        "MODE": "ram",
+        "T/s": 0.0,
+        "PREDICTED_TPS": 77.54,
+        "BASELINE_TPS": 77.54,
+        "TPS_RANGE": [
+            69.79,
+            85.29
+        ],
+        "LOG_FILE": "/Users/apple/Lumina/logs/llamafile_Qwen2.5-0.5B-Instruct-Q4_K_M.log",
+        "INITIALIZED_AT": 1793376376.104411,
+        "RAM": "0.44 GB"
+    },
+    "Qwen2.5-Coder-1.5B-Instruct-Q4_K_M": {
+        "PID": 11853,
+        "PORT": 55631,
+        "MODE": "ram",
+        "RAM": "1.82 GB",
+        "T/s": 0.0,
+        "BASELINE_TPS": null,
+        "LOG_FILE": "/Users/apple/Lumina/logs/llamafile_Qwen2.5-Coder-1.5B-Instruct-Q4_K_M.log",
+        "INITIALIZED_AT": 1792817205.435372
+    },
+    "Hermes-3-Llama-3.2-3B-Q4_K_M": {
+        "PID": 12859,
+        "PORT": 50287,
+        "MODE": "ram",
+        "RAM": "4.68 GB",
+        "T/s": 0.0,
+        "BASELINE_TPS": null,
+        "LOG_FILE": "/Users/apple/Lumina/logs/llamafile_Hermes-3-Llama-3.2-3B-Q4_K_M.log",
+        "INITIALIZED_AT": 1792823697.4943008
+    }
+}
