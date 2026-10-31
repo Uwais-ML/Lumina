@@ -47,7 +47,7 @@ def test_lumina_speed_prediction_math():
         expected_size_gb = param_b * (quant_bits / 8.0)
         expected_pred = bw / expected_size_gb
         assert abs(pred - expected_pred) < 1e-4, f"Mismatch for {model_name}: {pred} vs {expected_pred}"
-        print(f"  🔮 {model_name}: Predicted {pred:.2f} T/s (size: {expected_size_gb:.3f} GB)")
+        print(f"  [PREDICT] {model_name}: Predicted {pred:.2f} T/s (size: {expected_size_gb:.3f} GB)")
 
 
 def test_baseline_tps_clamping_to_plus_minus_10_percent():
@@ -76,7 +76,7 @@ def test_baseline_tps_clamping_to_plus_minus_10_percent():
     calibrated_burst, _, _ = Smartswitch.calibrate_baseline_tps(burst_speed, model, tolerance=0.10)
     assert calibrated_burst == high_10, f"Expected upper bound cap {high_10}, got {calibrated_burst}"
 
-    print(f"  ✅ ±10% bounding verified: [{low_10} - {high_10} T/s]")
+    print(f"  [OK] +/-10% bounding verified: [{low_10} - {high_10} T/s]")
 
 
 def test_model_launch_prediction_and_query_replay():
@@ -97,7 +97,7 @@ def test_model_launch_prediction_and_query_replay():
     allocated_port = launch_res["port"]
     assert allocated_port == port
 
-    print(f"  🚀 Launch completed in {launch_elapsed:.2f}s (PID: {pid}, Port: {allocated_port})")
+    print(f"  [LAUNCH] Launch completed in {launch_elapsed:.2f}s (PID: {pid}, Port: {allocated_port})")
 
     try:
         # Check status file content
@@ -129,7 +129,7 @@ def test_model_launch_prediction_and_query_replay():
         data = resp.json()
         content = data["choices"][0]["message"]["content"]
         assert "paris" in content.lower(), f"Unexpected content: {content}"
-        print(f"  ✔ Model inference succeeded: {content.strip()}")
+        print(f"  [INFER] Model inference succeeded: {content.strip()}")
 
         # Test failover with active query in buffer
         buffered_query = {
@@ -156,7 +156,7 @@ def test_model_launch_prediction_and_query_replay():
 
         assert replay_resp is not None
         replay_content = replay_resp["choices"][0]["message"]["content"]
-        print(f"  ⚡ Fast failover & query replay completed in {switch_latency:.2f}s: {replay_content.strip()}")
+        print(f"  [REPLAY] Fast failover & query replay completed in {switch_latency:.2f}s: {replay_content.strip()}")
 
         Smartswitch.killprocess(new_pid, timeout=2)
 

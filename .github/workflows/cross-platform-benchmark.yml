@@ -11,6 +11,10 @@ defaults:
   run:
     shell: bash   # Use bash on ALL platforms (Git Bash on Windows)
 
+env:
+  PYTHONIOENCODING: "utf-8"
+  PYTHONUTF8: "1"
+
 jobs:
   # ────────────────────────────────────────────────────────────────
   # JOB 1: Pure-math prediction + watchdog clamping tests
