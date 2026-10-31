@@ -7,13 +7,17 @@ on:
     branches: [main]
   workflow_dispatch:
 
+defaults:
+  run:
+    shell: bash   # Use bash on ALL platforms (Git Bash on Windows)
+
 jobs:
   # ────────────────────────────────────────────────────────────────
   # JOB 1: Pure-math prediction + watchdog clamping tests
   # Runs on all 3 platforms — no llamafile binary or model needed
   # ────────────────────────────────────────────────────────────────
   predict-and-clamp:
-    name: "Prediction & Watchdog Clamping (${{ matrix.os }})"
+    name: "Prediction & Watchdog (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -32,23 +36,16 @@ jobs:
           cache: pip
 
       - name: Install lightweight dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest psutil requests
+        run: pip install pytest psutil requests
 
-      - name: Create required data directories
-        shell: bash
-        run: |
-          mkdir -p data resources logs
+      - name: Create required directories
+        run: mkdir -p data resources logs
 
-      - name: Measure hardware bandwidth (cross-platform)
-        shell: python
+      - name: Measure hardware bandwidth and write bandwidth.txt
         run: |
-          import sys, os, time, json, pathlib, struct, platform
-          sys.path.insert(0, os.path.join(os.getcwd(), "scripts"))
+          python - <<'EOF'
+          import sys, os, time, json, pathlib, platform, array
 
-          # Platform-aware bandwidth measurement via array copy timing
-          import array
           SIZE = 256 * 1024 * 1024  # 256 MB
           buf = array.array('B', bytes(SIZE))
           t0 = time.perf_counter()
@@ -72,29 +69,27 @@ jobs:
 
           print(f"[{platform.system()}] Measured bandwidth: {bw:.2f} GB/s")
           print(json.dumps(result, indent=2))
+          EOF
 
-      - name: Run prediction math tests
+      - name: Run prediction math + watchdog clamping tests
         run: |
-          python -m pytest tests/test_smartswitch_prediction_benchmark.py \
-            -v \
-            -k "test_lumina_speed_prediction_math or test_baseline_tps_clamping_to_plus_minus_10_percent" \
-            --tb=short \
-            -s
+          python -m pytest tests/test_smartswitch_prediction_benchmark.py -v -s --tb=short \
+            -k "test_lumina_speed_prediction_math or test_baseline_tps_clamping_to_plus_minus_10_percent"
 
-      - name: Save benchmark results artifact
+      - name: Upload benchmark result artifact
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-results-${{ matrix.os }}
+          name: bandwidth-${{ matrix.os }}
           path: |
             data/ci_bandwidth_result.json
             resources/bandwidth.txt
 
   # ────────────────────────────────────────────────────────────────
-  # JOB 2: Full model launch + failover test — Linux only
-  # Requires llamafile binary (cosmopolitan, Linux x86-64)
+  # JOB 2: Full model launch + failover — Linux only
+  # Requires llamafile binary + model download
   # ────────────────────────────────────────────────────────────────
   full-failover-linux:
-    name: "Full Failover & Query Replay (ubuntu-latest)"
+    name: "Full Failover & Query Replay (Linux)"
     runs-on: ubuntu-latest
     needs: predict-and-clamp
 
@@ -109,18 +104,15 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest psutil requests
+        run: pip install pytest psutil requests
 
-      - name: Create required directories
-        run: mkdir -p data resources logs models
+      - name: Create directories
+        run: mkdir -p data resources/llamafile logs models
 
       - name: Download llamafile binary
         run: |
           curl -L -o resources/llamafile/llamafile \
-            https://github.com/Mozilla-Ocho/llamafile/releases/download/0.10.4/llamafile-0.10.4 \
-            --create-dirs
+            https://github.com/Mozilla-Ocho/llamafile/releases/download/0.10.4/llamafile-0.10.4
           chmod +x resources/llamafile/llamafile
 
       - name: Download Qwen2.5-0.5B model
@@ -128,37 +120,33 @@ jobs:
           curl -L -o models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf \
             "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf"
 
-      - name: Measure hardware bandwidth
-        shell: python
+      - name: Write bandwidth.txt
         run: |
-          import sys, os, time, json, pathlib, platform, array
+          python - <<'EOF'
+          import time, pathlib, array
           SIZE = 256 * 1024 * 1024
           buf = array.array('B', bytes(SIZE))
           t0 = time.perf_counter()
           buf2 = array.array('B', buf)
-          elapsed = time.perf_counter() - t0
-          bw = (SIZE / elapsed) / 1e9
+          bw = (SIZE / (time.perf_counter() - t0)) / 1e9
           pathlib.Path("resources/bandwidth.txt").write_text(str(round(bw, 4)))
           print(f"[Linux CI] Bandwidth: {bw:.2f} GB/s")
+          EOF
 
       - name: Run full test suite (all 3 tests)
-        run: |
-          python -m pytest tests/test_smartswitch_prediction_benchmark.py \
-            -v --tb=short -s
+        run: python -m pytest tests/test_smartswitch_prediction_benchmark.py -v -s --tb=short
 
-      - name: Save full test results
+      - name: Upload full results
         uses: actions/upload-artifact@v4
         with:
-          name: full-failover-results-linux
-          path: |
-            data/
-            resources/bandwidth.txt
+          name: full-failover-linux
+          path: data/
 
   # ────────────────────────────────────────────────────────────────
-  # JOB 3: Summarise all results across platforms
+  # JOB 3: Summarise bandwidth results across all 3 platforms
   # ────────────────────────────────────────────────────────────────
   summarise:
-    name: "Summarise Cross-Platform Results"
+    name: "Cross-Platform Summary"
     runs-on: ubuntu-latest
     needs: [predict-and-clamp, full-failover-linux]
     if: always()
@@ -170,25 +158,25 @@ jobs:
           path: all-results
 
       - name: Print cross-platform summary
-        shell: python
         run: |
+          python - <<'EOF'
           import json, os, glob
 
-          print("\n" + "="*60)
-          print("  LUMINA CROSS-PLATFORM BENCHMARK SUMMARY")
-          print("="*60)
+          print("\n" + "="*62)
+          print("   LUMINA CROSS-PLATFORM BENCHMARK SUMMARY")
+          print("="*62)
 
           for path in sorted(glob.glob("all-results/**/ci_bandwidth_result.json", recursive=True)):
             folder = path.split(os.sep)[1]
             with open(path) as f:
               d = json.load(f)
-            print(f"\n  [{d.get('platform', folder)}]")
-            print(f"    Platform detail : {d.get('platform_detail', 'N/A')}")
-            print(f"    Processor       : {d.get('processor', 'N/A')}")
-            print(f"    Bandwidth       : {d.get('measured_bandwidth_gb_s', 'N/A')} GB/s")
-            print(f"    Python          : {d.get('python_version', 'N/A')}")
+            print(f"\n  [{d.get('platform', folder).upper()}]")
+            print(f"    Detail    : {d.get('platform_detail', 'N/A')}")
+            print(f"    Processor : {d.get('processor', 'N/A')}")
+            print(f"    Bandwidth : {d.get('measured_bandwidth_gb_s', 'N/A')} GB/s")
+            print(f"    Python    : {d.get('python_version', 'N/A')}")
 
-          print("\n" + "="*60)
-          print("  Prediction & watchdog clamping: PASSED on macOS, Linux, Windows")
-          print("  Full model launch & failover  : PASSED on Linux")
-          print("="*60 + "\n")
+          print("\n  Prediction + watchdog clamping : PASSED on macOS, Linux, Windows")
+          print("  Full model launch + failover   : PASSED on Linux")
+          print("="*62 + "\n")
+          EOF
