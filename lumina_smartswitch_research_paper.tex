@@ -730,6 +730,20 @@ We presented \textbf{Lumina} and \textbf{SmartSwitch}, an autonomous edge LLM or
 
 SmartSwitch uses this analytical prior to constrain runtime watchdog baselines within $\Ppred \pm 10\%$, eliminating cold-start bias under severe hardware contention. By pairing kernel page pre-faulting, asymmetric thread scheduling, and in-flight query ring buffering, SmartSwitch reduces cold initialization latency by \textbf{$4.92\times$}, executes same-port failovers in \textbf{$3.22\su \pm 0.64\su$} across repeated trials ($33.45\su \pm 1.92\su$ under active CPU contention) with $100\%$ query completion, and maintains semantic conversation continuity across architecture swaps via local vector indexing. These results demonstrate that grounding runtime monitoring in micro-architectural bounds provides a viable path toward resilient, autonomous edge artificial intelligence.
 
+\medskip\noindent\textbf{Try it on your own machine.} Lumina is fully open-source and runs on macOS, Windows, and Linux with no configuration required. The entire stack --- inference engine, watchdog, memory layer, and web dashboard --- is self-contained. To get started:
+\begin{center}
+\url{https://github.com/Uwais-ML/Lumina}
+\end{center}
+\vspace{-2pt}
+\begin{verbatim}
+  git clone https://github.com/Uwais-ML/Lumina.git
+  cd Lumina
+  ./lumina --setup          # downloads models & detects your hardware
+  ./lumina --switch Qwen2.5-0.5B-Instruct-Q4_K_M 0.25   # start watchdog
+\end{verbatim}
+\vspace{-4pt}
+\noindent The \code{{-}{-}setup} command auto-detects your OS, measures your DRAM or VRAM bandwidth, validates your runtime environment, and downloads the base model registry. No \code{pip install}, no manual Java setup, and no cloud account required. All inference, watchdog monitoring, vector memory, and the web dashboard (\code{localhost:8080}) run fully offline.
+
 % ======================================================================
 \section*{References}
 \begin{enumerate}[leftmargin=2em,label={[\arabic*]},itemsep=3pt]
@@ -746,11 +760,20 @@ SmartSwitch uses this analytical prior to constrain runtime watchdog baselines w
 \end{enumerate}
 
 \section*{Appendix A: Reproducibility \& Fault Injection Methodology}
-All raw experiment logs, JSON result files, and reproduction scripts are archived and publicly accessible at:\par
+All raw experiment logs, JSON result files, and reproduction scripts are publicly archived at the official repository:
 \begin{center}
-\url{https://github.com/lumina-systems/smartswitch} \quad (release tag \texttt{v0.1.0}; software artifact DOI: \texttt{10.5281/zenodo.14022831})
+\url{https://github.com/Uwais-ML/Lumina} \quad (branch: \texttt{main}; research artifacts on branch \texttt{lumina\_research})
 \end{center}
-Every table in this paper is generated directly from committed JSON result files via \code{make tables}, ensuring numbers cannot drift from text. The watchdog policy comparison (Table~\ref{tab:policy}), startup ablation (Table~\ref{tab:ablation}), startup distribution (Table~\ref{tab:startup}), failover distribution (Table~\ref{tab:failover}), contention recovery (Table~\ref{tab:contention_failover}), and client isolation (Table~\ref{tab:isolation}) are fully reproducible on any x86-64 Linux or macOS host with Python~3.11 and llamafile~v0.10.4.
+\noindent\textbf{Quickstart for readers.} Any reader can reproduce all experiments reported in this paper on their own CPU or NVIDIA CUDA GPU hardware in four commands:
+\begin{verbatim}
+  git clone https://github.com/Uwais-ML/Lumina.git && cd Lumina
+  ./lumina --setup                           # auto-detects OS, GPU, downloads models
+  python3 -m pytest tests/ -v                # runs full prediction & failover suite
+  python3 scripts/run_reviewer_experiments.py  # replicates all 4 reviewer experiments
+\end{verbatim}
+\noindent The setup script (\code{scripts/setup\_environment.py}) auto-detects macOS, Linux, and Windows; validates Java and Python runtimes; downloads the \code{llamafile} binary from Mozilla CDN if absent; and fetches model weights from HuggingFace. GPU hardware (NVIDIA CUDA) is detected automatically and used for VRAM-mode inference without any additional configuration.
+
+Every table in this paper is generated directly from committed JSON result files (\code{data/reviewer\_experiments\_results.json} for CPU, \code{data/reviewer\_experiments\_gpu\_results.json} for NVIDIA T4 GPU), ensuring numbers cannot drift from text. The watchdog policy comparison (Table~\ref{tab:policy}), startup ablation (Table~\ref{tab:ablation}), startup distribution (Table~\ref{tab:startup}), failover distribution (Table~\ref{tab:failover}), contention recovery (Table~\ref{tab:contention_failover}), client isolation (Table~\ref{tab:isolation}), and cross-architecture GPU comparison (Table~\ref{tab:gpu_comparison}) are fully reproducible on any x86-64 Linux or macOS host with Python~3.11 and llamafile~v0.10.4.
 
 \begin{itemize}[leftmargin=*]
 \item \textbf{Fault injection.} Memory degradation was simulated by generating repeated autoregressive requests with high prompt lengths and monitoring RSS via \code{psutil}. Degradation trips were triggered when token velocity fell below $0.75 \cdot \Cfun(\Tfirst, \Ppred)$.
