@@ -1,0 +1,66 @@
+{
+  "device": "NVIDIA Tesla T4 (16GB GDDR6 VRAM, Google Colab)",
+  "vram_bandwidth_gb_s": 108.86,
+  "failover_repeated": {
+    "n_runs": 5,
+    "mean_total": 5.49,
+    "std_total": 0.03,
+    "ci95_low": 5.468,
+    "ci95_high": 5.518,
+    "min_total": 5.458,
+    "max_total": 5.525,
+    "mean_init": 1.579,
+    "mean_replay": 0.907,
+    "raw_runs": [
+      {"total_latency": 5.513, "t_init": 1.588, "t_replay": 0.923},
+      {"total_latency": 5.525, "t_init": 1.584, "t_replay": 0.921},
+      {"total_latency": 5.458, "t_init": 1.576, "t_replay": 0.880},
+      {"total_latency": 5.469, "t_init": 1.573, "t_replay": 0.896},
+      {"total_latency": 5.500, "t_init": 1.582, "t_replay": 0.914}
+    ]
+  },
+  "failover_contention": {
+    "n_runs": 3,
+    "stressor": "stress-ng --cpu 4",
+    "mean_total": 8.19,
+    "std_total": 0.18,
+    "min_total": 8.070,
+    "max_total": 8.401,
+    "mean_init": 1.723,
+    "mean_replay": 3.449,
+    "completion_rate": 100.0,
+    "raw_runs": [
+      {"total_latency": 8.070, "t_init": 1.735, "t_replay": 3.326},
+      {"total_latency": 8.401, "t_init": 1.693, "t_replay": 3.688},
+      {"total_latency": 8.094, "t_init": 1.741, "t_replay": 3.333}
+    ]
+  },
+  "client_isolation": {
+    "mode_a_uninstrumented": {
+      "completion_rate": 0.0,
+      "exception": "TimeoutError",
+      "app_intervention_required": true,
+      "query_loss": true
+    },
+    "mode_b_naive_retry": {
+      "completion_rate": 100.0,
+      "latency_overhead_s": 0.29,
+      "retry_attempts": 1,
+      "app_intervention_required": true,
+      "query_loss": false
+    },
+    "mode_c_smartswitch": {
+      "completion_rate": 100.0,
+      "latency_overhead_s": 0.39,
+      "retry_attempts": 1,
+      "app_intervention_required": false,
+      "query_loss": false
+    }
+  },
+  "vector_db_continuity": {
+    "corpus": "5 historical multi-turn conversation turns stored in Chroma vector DB",
+    "mean_recall_without_retrieval": 0.0,
+    "mean_recall_with_retrieval": 75.0,
+    "notes": "Query 1 recall: 50% (Green Bank Telescope recalled), Query 2 recall: 100% (November 15 recalled); without RAG recall: 0.0%"
+  }
+}
