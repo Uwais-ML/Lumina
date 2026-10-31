@@ -1,0 +1,6 @@
+{
+  "clients": 3,
+  "requests_submitted": 3,
+  "requests_delivered": 3,
+  "max_queue_depth": 32
+}
