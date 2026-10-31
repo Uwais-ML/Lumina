@@ -18,6 +18,7 @@ import socket
 import urllib.request
 import urllib.error
 import subprocess
+import shutil
 import psutil
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
