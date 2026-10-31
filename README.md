@@ -14,6 +14,8 @@ It bundles its own Java runtime, Python runtime, and inference engine, so it run
 <div align="center">
 
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-00d2ff?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Uwais-ML/Lumina)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-00d2ff?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Uwais-ML/Lumina)
+[![CI](https://github.com/Uwais-ML/Lumina/actions/workflows/cross-platform-benchmark.yml/badge.svg)](https://github.com/Uwais-ML/Lumina/actions/workflows/cross-platform-benchmark.yml)
 [![Hardware](https://img.shields.io/badge/Hardware-CPU%20%2B%20NVIDIA%20GPU%20(CUDA)-76b900?style=for-the-badge&logo=nvidia&logoColor=white)](https://github.com/Uwais-ML/Lumina)
 [![Runtime](https://img.shields.io/badge/Runtime-Zero--Config%20Bundled-a020f0?style=for-the-badge&logo=coffeescript&logoColor=white)](https://github.com/Uwais-ML/Lumina)
 [![Inference](https://img.shields.io/badge/Inference-GGUF%20%2F%20llamafile-2ecc71?style=for-the-badge&logo=gnubash&logoColor=white)](https://github.com/Uwais-ML/Lumina)
