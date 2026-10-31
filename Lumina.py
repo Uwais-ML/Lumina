@@ -655,8 +655,8 @@ COMMANDS = {
     },
     "--setup": {
         "type": "python",
-        "target": os.path.join(PROJECT_ROOT, "scripts", "download_base_models.py"),
-        "description": "Downloads base GGUF models",
+        "target": os.path.join(PROJECT_ROOT, "scripts", "setup_environment.py"),
+        "description": "Universal environment setup: checks OS, GPU, binaries, Java, Python, and models",
     },
     "--rag": {
         "type": "python",
