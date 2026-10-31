@@ -9,11 +9,26 @@ import subprocess
 import time
 import pytest
 
+import platform
+
 PROJECT_ROOT  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS_DIR   = os.path.join(PROJECT_ROOT, "scripts")
-BUNDLED_SITE_PACKAGES = os.path.join(
-    PROJECT_ROOT, "python-dependencies", "macos-intel", "lib", "python3.10", "site-packages"
-)
+
+# Resolve bundled site-packages dynamically based on OS
+current_os = platform.system().lower()
+if "darwin" in current_os:
+    BUNDLED_SITE_PACKAGES = os.path.join(
+        PROJECT_ROOT, "python-dependencies", "macos-intel", "lib", "python3.10", "site-packages"
+    )
+elif "windows" in current_os:
+    BUNDLED_SITE_PACKAGES = os.path.join(
+        PROJECT_ROOT, "python-dependencies", "windows", "Lib", "site-packages"
+    )
+else:
+    BUNDLED_SITE_PACKAGES = os.path.join(
+        PROJECT_ROOT, "python-dependencies", "linux-intel", "lib", "python3.10", "site-packages"
+    )
+
 RESOURCES_DIR = os.path.join(PROJECT_ROOT, "resources")
 LLAMAFILE_BIN = os.path.join(RESOURCES_DIR, "llamafile", "llamafile-0.10.4-thin")
 BANDWIDTH_TXT = os.path.join(RESOURCES_DIR, "bandwidth.txt")
@@ -24,8 +39,10 @@ DATA_DIR      = os.path.join(PROJECT_ROOT, "data")
 os.makedirs(LOGS_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
 
-if BUNDLED_SITE_PACKAGES not in sys.path:
-    sys.path.insert(0, BUNDLED_SITE_PACKAGES)
+# Only insert bundled packages if they actually exist on this system
+if os.path.isdir(BUNDLED_SITE_PACKAGES) and BUNDLED_SITE_PACKAGES not in sys.path:
+    # Append rather than prepend to preserve environment-installed packages
+    sys.path.append(BUNDLED_SITE_PACKAGES)
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
