@@ -99,9 +99,14 @@ def run_single_failover(port=None, under_contention=False):
 
     stress_proc = None
     if under_contention:
+        # Dynamically resolve stress-ng binary (Linux /usr/bin/stress-ng or macOS /usr/local/bin/stress-ng)
+        stress_bin = shutil.which("stress-ng") or "/usr/bin/stress-ng"
+        if not os.path.exists(stress_bin):
+            stress_bin = "/usr/local/bin/stress-ng"
+
         # Start stress right as degradation occurs
         stress_proc = subprocess.Popen(
-            ["/usr/local/bin/stress-ng", "--cpu", "4", "--timeout", "60s"],
+            [stress_bin, "--cpu", "4", "--timeout", "60s"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
