@@ -246,11 +246,30 @@ def get_lumina_predicted_tps(model_name):
     return None
 
 
-def calibrate_baseline_tps(raw_tps, model_name, tolerance=0.10):
+def get_adaptive_tolerance(model_name):
     """
-    Calibrates empirical baseline T/s against Lumina prediction with +-tolerance (default +-10%).
+    Computes an adaptive tolerance window based on model parameter footprint.
+    Small models (<1B) exhibit higher prefill variance and cache distortion,
+    yielding an empirical LOO error tail of ~15.5%. Larger models (>=1B) stabilize
+    consistently within ±10%.
+    """
+    clean_name = os.path.basename(model_name).replace(".gguf", "")
+    m = re.search(r"(\d+(\.\d+)?)B", clean_name, re.IGNORECASE)
+    param_b = float(m.group(1)) if m else 1.0
+    if param_b < 1.0:
+        return 0.16  # 16% adaptive window for sub-1B models (safely encompassing 15.5% LOO tail)
+    return 0.10      # 10% standard window for >=1B models
+
+
+def calibrate_baseline_tps(raw_tps, model_name, tolerance=None):
+    """
+    Calibrates empirical baseline T/s against Lumina prediction with adaptive tolerance.
+    If tolerance is not explicitly specified, get_adaptive_tolerance(model_name) is used.
     Returns (calibrated_baseline, predicted_tps, (lower_bound, upper_bound)).
     """
+    if tolerance is None:
+        tolerance = get_adaptive_tolerance(model_name)
+
     pred_tps = get_lumina_predicted_tps(model_name)
     if not pred_tps or pred_tps <= 0:
         return (raw_tps, None, (None, None))
@@ -266,7 +285,7 @@ def calibrate_baseline_tps(raw_tps, model_name, tolerance=0.10):
     if raw_tps < lower_bound:
         logging.warning(
             f"⚠️ First run T/s for '{model_name}' ({raw_tps:.2f}) is below Lumina predicted range "
-            f"[{lower_bound:.2f} - {upper_bound:.2f} T/s] (-10% bound). "
+            f"[{lower_bound:.2f} - {upper_bound:.2f} T/s] (-{tolerance*100:.0f}% bound). "
             f"Anchoring baseline to {lower_bound:.2f} T/s."
         )
         return (lower_bound, round(pred_tps, 2), (lower_bound, upper_bound))
@@ -279,7 +298,7 @@ def calibrate_baseline_tps(raw_tps, model_name, tolerance=0.10):
     else:
         logging.info(
             f"✅ First run speed for '{model_name}' ({raw_tps:.2f} T/s) confirmed within Lumina predicted range "
-            f"[{lower_bound:.2f} - {upper_bound:.2f} T/s] (±10%)."
+            f"[{lower_bound:.2f} - {upper_bound:.2f} T/s] (±{tolerance*100:.0f}%)."
         )
         return (round(raw_tps, 2), round(pred_tps, 2), (lower_bound, upper_bound))
 

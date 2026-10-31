@@ -1,0 +1,44 @@
+[
+  {
+    "context_tokens": 512,
+    "kv_overhead_mb": 42.0,
+    "effective_model_size_gb": 0.411,
+    "predicted_tps": 56.95,
+    "velocity_ratio": 0.9002
+  },
+  {
+    "context_tokens": 1024,
+    "kv_overhead_mb": 84.0,
+    "effective_model_size_gb": 0.452,
+    "predicted_tps": 51.79,
+    "velocity_ratio": 0.8185
+  },
+  {
+    "context_tokens": 2048,
+    "kv_overhead_mb": 168.0,
+    "effective_model_size_gb": 0.5341,
+    "predicted_tps": 43.83,
+    "velocity_ratio": 0.6928
+  },
+  {
+    "context_tokens": 4096,
+    "kv_overhead_mb": 336.0,
+    "effective_model_size_gb": 0.6981,
+    "predicted_tps": 33.53,
+    "velocity_ratio": 0.53
+  },
+  {
+    "context_tokens": 8192,
+    "kv_overhead_mb": 672.0,
+    "effective_model_size_gb": 1.0263,
+    "predicted_tps": 22.81,
+    "velocity_ratio": 0.3605
+  },
+  {
+    "context_tokens": 12288,
+    "kv_overhead_mb": 1008.0,
+    "effective_model_size_gb": 1.3544,
+    "predicted_tps": 17.28,
+    "velocity_ratio": 0.2732
+  }
+]
