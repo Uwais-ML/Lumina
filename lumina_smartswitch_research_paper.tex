@@ -610,21 +610,21 @@ These measurements demonstrate that the analytical inverse size formulation hold
 \begin{table}[h]
 \centering
 \caption{Cross-architecture failover benchmark: Host CPU (Intel i5-8257U) vs.\ Discrete GPU (NVIDIA Tesla T4).}\label{tab:gpu_comparison}
-\small
-\begin{tabularx}{\linewidth}{@{}p{4.2cm}CCL@{}}
+\footnotesize
+\begin{tabularx}{\linewidth}{@{}p{3.4cm}CCX@{}}
 \toprule
-\textbf{Benchmark Condition} & \textbf{Host CPU (Intel i5)} & \textbf{Discrete GPU (NVIDIA T4)} & \textbf{Cross-Architecture Behavioral Analysis} \\
+\textbf{Benchmark Metric} & \textbf{Host CPU (Intel i5)} & \textbf{GPU (NVIDIA T4)} & \textbf{Architectural Analysis} \\
 \midrule
-\textbf{Measured Memory Bandwidth} & $23.41\GBs$ (DRAM) & $\mathbf{108.86\GBs}$ (GDDR6) & $4.65\times$ memory throughput expansion \\
-\textbf{Peak Decode Velocity (0.5B)} & $18.16\Ts$ & $\mathbf{360.62\Ts}$ & $19.86\times$ token generation throughput \\
+\textbf{Measured Bandwidth} & $23.41\GBs$ (DRAM) & $\mathbf{108.86\GBs}$ (GDDR6) & $4.65\times$ memory throughput expansion \\
+\textbf{Peak Velocity (0.5B)} & $18.16\Ts$ & $\mathbf{360.62\Ts}$ & $19.86\times$ token decode speedup \\
 \midrule
 \textbf{Repeated Failover ($N=5$)} & $3.22\su \pm 0.64\su$ & $5.49\su \pm 0.03\su$ & Ultra-low jitter ($\sigma = 0.03\su$, CI: $[5.47\su, 5.52\su]$) \\
 \quad -- Process init \& VRAM alloc & $1.76\su \pm 0.68\su$ & $1.58\su \pm 0.01\su$ & Deterministic CUDA runtime allocation \\
 \quad -- Ring-buffer query replay & $0.30\su \pm 0.01\su$ & $0.91\su \pm 0.02\su$ & Fast GPU kernel launch \& prefill \\
 \midrule
-\textbf{Contended Failover (\code{stress-ng})} & $33.45\su \pm 1.92\su$ & $\mathbf{8.19\su \pm 0.18\su}$ & \textbf{CPU degrades by $10.4\times$; GPU degrades by only $1.49\times$} \\
-\quad -- Contention slowdown factor & $10.4\times$ penalty & $\mathbf{1.49\times}$ penalty & GPU decode decoupled from host CPU core thrashing \\
-\quad -- Contended query completion & $\mathbf{100.0\%}$ & $\mathbf{100.0\%}$ & Zero queries dropped under saturated host CPU \\
+\textbf{Contended Failover (\code{stress-ng})} & $33.45\su \pm 1.92\su$ & $\mathbf{8.19\su \pm 0.18\su}$ & \textbf{CPU: $10.4\times$ penalty; GPU: only $1.49\times$} \\
+\quad -- Contention slowdown factor & $10.4\times$ penalty & $\mathbf{1.49\times}$ penalty & GPU decode decoupled from host CPU thrashing \\
+\quad -- Contended query completion & $\mathbf{100.0\%}$ & $\mathbf{100.0\%}$ & Zero queries dropped under saturated CPU \\
 \midrule
 \textbf{Client Isolation Mode A (Naive)} & $0.0\%$ (Severed) & $0.0\%$ (\code{TimeoutError}) & Backend termination unhandled without proxy \\
 \textbf{Client Isolation Mode B (Retry)} & $100.0\%$ ($+0.33\su$) & $100.0\%$ ($+0.29\su$) & Requires application-layer retry orchestration \\
