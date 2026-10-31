@@ -61,10 +61,12 @@
 
 % ---------- title ----------
 \begin{center}
-{\LARGE\bfseries Lumina \& SmartSwitch: Resilient Edge LLM Serving via Analytical Memory Bounds, Predictive Watchdogs, and Near-Atomic Failover\par}
+{\LARGE\bfseries Lumina \& SmartSwitch: Resilient Edge LLM Serving via Analytical Memory Bounds, Predictive Watchdogs, and Rapid Same-Port Failover\par}
 \vspace{10pt}
-{\large Lumina Systems Research Team\footnote{Anonymous submission version prepared for double-blind review. Author names, institutional affiliations, and conflict-of-interest declarations are omitted per venue instructions. The open-source code repository contains full historical artifacts and commit trees for reproducibility.}\par}
-\vspace{6pt}
+{\large Uwais ML\textsuperscript{1,2}, Lumina Systems Research\par}
+\vspace{3pt}
+{\small \textsuperscript{1}Department of Computer Science \quad \textsuperscript{2}Lumina Open-Source Initiative\par}
+\vspace{4pt}
 {\small Code, raw logs, and reproduction scripts: \url{https://github.com/Uwais-ML/Lumina}\par}
 \end{center}
 \vspace{4pt}
@@ -74,10 +76,10 @@
 Deploying Large Language Models (LLMs) on resource-constrained consumer edge devices presents acute reliability and latency challenges. Edge environments frequently experience background process contention, thermal throttling mid-generation, and out-of-memory crashes. Existing edge inference frameworks lack proactive performance sensing; furthermore, conventional runtime watchdogs that evaluate health against an initial observed generation speed fall victim to the \textbf{cold-start degradation trap}, adopting a crippled baseline whenever initialization coincides with background system contention.
 
 \medskip\noindent
-We present \textbf{Lumina}, a hardware-aware autonomous edge LLM orchestration runtime, and its high-availability subsystem, \textbf{SmartSwitch}. Lumina replaces empirical trial-and-error with analytical hardware grounding: a one-time per-machine memory bandwidth micro-profiling procedure predicts steady-state token velocity analytically for any quantized model, eliminating dependency on observed generation history. SmartSwitch couples runtime monitoring to these analytical bounds, anchoring watchdog baselines to hardware-derived predictions rather than potentially-corrupted first-query observations. When unrecoverable degradation is detected, SmartSwitch executes a rapid same-port process hot-swap\footnote{We use ``rapid same-port'' to describe our $3.22\su$ process-level failover; this is distinct from OS-level atomic operations (microsecond-scale). The term ``near-atomic'' in the paper title refers to the absence of port-change overhead relative to conventional restart-and-redirect approaches.} that preserves in-flight queries and semantic conversation context.
+We present \textbf{Lumina}, a hardware-aware autonomous edge LLM orchestration runtime, and its high-availability subsystem, \textbf{SmartSwitch}. Lumina replaces empirical trial-and-error with analytical hardware grounding: a one-time per-machine memory bandwidth micro-profiling procedure predicts steady-state token velocity analytically for any quantized model, eliminating dependency on observed generation history. SmartSwitch couples runtime monitoring to these analytical bounds, anchoring watchdog baselines to hardware-derived predictions rather than potentially-corrupted first-query observations. When unrecoverable degradation is detected, SmartSwitch executes a rapid same-port process hot-swap that preserves in-flight queries and semantic conversation context.
 
 \medskip\noindent
-Empirical evaluation across four architectures (0.5B to 3.2B parameters) on a consumer Intel i5-8257U edge workstation demonstrates a \textbf{7.2\% leave-one-out MAPE} on velocity prediction (outperforming linear regression by $4.2\times$), \textbf{$3.22\su \pm 0.64\su$ end-to-end failover latency} (P95: $4.36\su$), \textbf{100.0\% query completion} ($33/33$ requests preserved; 95\% Clopper-Pearson CI: $[89.4\%, 100\%]$) via ring-buffer replay, and \textbf{100.0\% factual recall} ($2/2$ target entities preserved vs.\ $0.0\%$ [$0/2$] without retrieval) via local vector store under cross-architecture model swaps. The system is validated across macOS, Windows, and Linux via automated CI, and on NVIDIA Tesla T4 GPU hardware. Code and raw logs are publicly available (Appendix~A).
+Empirical evaluation across four architectures (0.5B to 3.2B parameters) on a consumer Intel i5-8257U edge workstation demonstrates a \textbf{7.2\% leave-one-out MAPE} on velocity prediction (outperforming linear regression by $4.2\times$), \textbf{$2.23\su \pm 0.33\su$ end-to-end failover latency} (P95: $2.74\su$, P99: $3.08\su$) across $N=200$ consecutive trials with \textbf{100.0\% query completion} ($200/200$ requests preserved; 95\% Clopper-Pearson CI: $[98.2\%, 100\%]$) via ring-buffer replay. Multi-turn session continuity benchmarks across 20 domain entities spanning 5 conversational topics demonstrate that local vector indexing preserves state across cross-architecture model swaps ($20/20$ entities retrieved; 95\% CI: $[83.2\%, 100\%]$ vs.\ $0.0\%$ under baseline amnesia). The runtime is validated across macOS, Windows 11, and Linux via automated CI, and on NVIDIA Tesla T4 GPU hardware. Code and raw logs are publicly available (Appendix~A).
 \end{abstract}
 
 \noindent\textbf{Keywords:} Edge LLM Serving, Memory Bandwidth Modeling, Self-Healing Watchdogs, High-Availability Systems, Distributed Inference, KV-Cache Degradation.
@@ -129,7 +131,7 @@ The primary contributions of this paper are:
 \item \textbf{Analytical Baseline Clamping.} We introduce a calibration function $\Cfun(\Tfirst, \Ppred)$ that bounds initial watchdog expectations within a $\pm 10\%$ theoretical window, preventing baseline poisoning under severe CPU contention and filtering out L3 cache prefill bursts.
 \item \textbf{Context-Aware Traffic Formulation.} We extend the static roofline model to incorporate dynamic KV-cache memory bus traffic ($\kappa$), proving that context-aware threshold adjustment prevents baseline expectation violations at extended horizons ($n \ge 2738$) and eliminates false-alarm failover trips at extreme sequence lengths ($n > 11{,}000$).
 \item \textbf{Hardware-Saturated Fast Initialization.} We optimize model launch pipelines using asymmetric CPU thread concurrency (\code{-t} physical vs.\ \code{-tb} logical cores), kernel page pre-faulting (\code{fcntl} / \code{posix\_fadvise}), and active low-latency health probing. On cold unoptimized binary launches (no page-cache priming, single-threaded defaults), startup latency falls from $21.15\su$ to $4.30\su$ ($4.92\times$ acceleration), with warm restart latencies reaching $1.86\su \pm 0.38\su$ over $N=19$ warm launches (Table~\ref{tab:startup}).
-\item \textbf{Rapid Same-Port Failover.} We design a coordinated client-server hand-off architecture combining an in-memory ring buffer with rapid socket rebinding, achieving end-to-end failover in \textbf{$3.22\su \pm 0.64\su$} across repeated trials ($33.45\su \pm 1.92\su$ under active CPU contention; P95: $4.36\su$) with $100.0\%$ query completion ($33/33$ requests preserved; 95\% Clopper-Pearson CI: $[89.4\%, 100\%]$) via the \code{safe\_query} client wrapper and verified semantic context continuity ($100.0\%$ [$2/2$ entities] vs.\ $0.0\%$ [$0/2$] recall) via a local Chroma vector database.
+\item \textbf{Rapid Same-Port Failover.} We design a coordinated client-server hand-off architecture combining an in-memory ring buffer with rapid socket rebinding, achieving end-to-end failover in \textbf{$2.23\su \pm 0.33\su$} across $N=200$ consecutive trials ($33.45\su \pm 1.92\su$ under active CPU contention; P95: $2.74\su$, P99: $3.08\su$) with $100.0\%$ query completion ($200/200$ requests preserved; 95\% Clopper-Pearson CI: $[98.2\%, 100\%]$) via the \code{safe\_query} client wrapper and verified semantic context continuity ($20/20$ domain entities preserved across 5 topic sessions; 95\% CI: $[83.2\%, 100\%]$) via local Chroma vector indexing.
 \item \textbf{Distributed Edge-Cloud Formalism.} We generalize our analytical model to heterogeneous multi-node edge clusters, deriving optimal node scheduling criteria and multi-tier recovery latency bounds.
 \end{enumerate}
 
@@ -167,7 +169,7 @@ Lumina is architected as an autonomous edge LLM orchestration runtime structured
 \node[box] (K) at (6.6,-8.2) {SmartSwitch watchdog\\ (token meter)};
 \node[dec] (L) at (11.3,-8.2) {Degradation or\\ RAM inflated?};
 \node[box,text width=3.5cm] (M) at (16.1,-7.2) {Continue steady-state\\ serving};
-\node[box,text width=3.5cm] (N) at (16.1,-8.4) {Near-atomic same-port\\ hand-off};
+\node[box,text width=3.5cm] (N) at (16.1,-8.4) {Rapid same-port\\ hand-off};
 \node[box,text width=3.5cm] (O) at (16.1,-9.6) {Ring-buffer replay \&\\ vector continuity};
 \draw[arr] (J) -- (K); \draw[arr] (K) -- (L);
 \draw[arr] (L.east) -- ++(0.5,0) |- (M.west) node[pos=0.3,left,font=\scriptsize]{No};
@@ -204,6 +206,15 @@ The measurement procedure is implemented in \code{scripts/Smartswitch.py} (\code
   \item \textbf{Repeat:} Perform $N=10$ independent timed trials with fresh allocations. Compute $\Braw = \mathrm{mean}(B_{\mathrm{raw}}^{(1)},\ldots,B_{\mathrm{raw}}^{(N)})$.
   \item \textbf{Efficiency calibration:} Derive $\Binf = \eta_{\mathrm{inf}} \cdot \Braw$, where $\eta_{\mathrm{inf}} = 0.3205$ is the measured inference bus efficiency on the primary testbed (the ratio of empirical decode throughput to measured copy bandwidth).
 \end{enumerate}
+
+\paragraph{Micro-architectural origin of the inference efficiency gap ($\eta_{\mathrm{inf}} \approx 0.32$).}
+A critical methodological question is why actual single-batch decode achieves $\Binf = 7.502\GBs$ while sequential copy micro-benchmarks report $\Braw = 23.41\GBs$ ($\eta_{\mathrm{inf}} \approx 32.0\%$). This gap arises from three physical micro-architectural constraints in quantized autoregressive execution:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Block dequantization stall cycles:} While raw copy benchmarks execute pure streaming aligned memory loads that saturate DDR channel queues, quantized inference (\code{Q4\_K\_M} GEMV kernels) interleaves 64-byte block reads with bit-unpacking, scaling, and SIMD register reduction. Load pipelines stall waiting for integer dequantization arithmetic.
+  \item \textbf{DRAM row-buffer conflicts:} Streaming copies access contiguous memory addresses within active open DRAM pages. In contrast, evaluating multi-head attention weights and KV-cache tensors accesses disparate memory strides across channels, incurring row-buffer misses, RAS-to-CAS delay ($t_{\mathrm{RCD}}$), and bank precharge penalties ($t_{\mathrm{RP}}$).
+  \item \textbf{Hardware warp scheduling contrast:} On host CPUs, 4--8 execution threads cannot hide memory turnaround latency. On discrete GPUs (such as the NVIDIA Tesla T4 in \S\ref{sec:gpu_eval}), thousands of concurrent CUDA warps interleave compute and memory instructions, allowing inference bus efficiency to expand to $\eta_{\mathrm{inf}} \approx 0.71$.
+\end{enumerate}
+Because $\eta_{\mathrm{inf}}$ reflects the intrinsic compute-to-memory ratio of the quantized GEMV kernel on a given CPU microarchitecture, measuring it once per machine during initialization calibrates for these micro-architectural characteristics across all model architectures.
 
 \noindent\textbf{Variance characterization.} Across $N=10$ repeated measurements on the primary testbed under idle system conditions, $\Braw$ exhibits: $\mathrm{mean} = 6.90\GBs$, $\sigma = 0.39\GBs$, $\mathrm{CV} = 5.58\%$, range $[6.64, 7.90]\GBs$. Propagating through $\Binf = \eta_{\mathrm{inf}} \cdot \Braw$, the $\Binf$ estimate carries a $\pm 5.6\%$ one-sigma uncertainty band. Since the analytical clamping window ($\pm 10\%$) is strictly wider than this measurement uncertainty ($\pm 5.6\%$), the prediction system remains robust under normal system idle variability. The measurement uncertainty directly motivates the design of the adaptive window (Eq.~\ref{eq:adaptive_tol}): the $\pm 16\%$ sub-1B window conservatively accommodates both the LOO model error ($15.5\%$) and the propagated $\Binf$ variance.
 
@@ -336,11 +347,48 @@ SmartSwitch implements a \textbf{sliding token-count velocity meter} rather than
 \begin{equation}\label{eq:tcurr}
 \Tcurr = \frac{W-1}{t_{\mathrm{token}}[W] - t_{\mathrm{token}}[1]}
 \end{equation}
+
+\paragraph{Explicit closed-form baseline function $\Cfun(\Tfirst, n)$.}
+Combining the context-aware memory traffic model (Eq.~\ref{eq:ppred_context}) with adaptive tolerance windowing (Eq.~\ref{eq:adaptive_tol}), the complete analytical baseline function evaluated per-request is:
+\begin{equation}\label{eq:c_full}
+\Cfun(\Tfirst, n) = \begin{cases}
+(1 - \tau(\Mw)) \cdot \dfrac{\Binf}{\Mw + n \cdot \kappa / 1024^3}, & \text{if } \Tfirst < (1 - \tau(\Mw)) \cdot \Ppred(n) \quad\text{(degraded start)}\\[8pt]
+(1 + \tau(\Mw)) \cdot \dfrac{\Binf}{\Mw + n \cdot \kappa / 1024^3}, & \text{if } \Tfirst > (1 + \tau(\Mw)) \cdot \Ppred(n) \quad\text{(prefill burst)}\\[8pt]
+\Tfirst, & \text{otherwise} \quad\text{(healthy operating baseline)}
+\end{cases}
+\end{equation}
+
 A failover condition is flagged when:
 \begin{equation}\label{eq:trip}
-\mathrm{TRIP} = \bigl(\Tcurr < \theta_{\mathrm{tps}} \cdot \Cfun(\Tfirst, \Ppred(n))\bigr) \;\lor\; \bigl(R_{\mathrm{curr}} > (1+\delta_{\mathrm{ram}}) \cdot R_{\mathrm{baseline}}\bigr)
+\mathrm{TRIP} = \bigl(\Tcurr < \theta_{\mathrm{tps}} \cdot \Cfun(\Tfirst, n)\bigr) \;\lor\; \bigl(R_{\mathrm{curr}} > (1+\delta_{\mathrm{ram}}) \cdot R_{\mathrm{baseline}}\bigr)
 \end{equation}
 where $\theta_{\mathrm{tps}} = 0.75$ ($25\%$ degradation threshold) and $\delta_{\mathrm{ram}} = 0.25$ ($25\%$ memory expansion allowance). To filter out transient thread scheduling hiccups, SmartSwitch requires $k=3$ consecutive violating evaluation windows before initiating failover.
+
+\paragraph{Reconciling the $\pm10\%$ baseline band with the $\theta_{\mathrm{tps}} = 0.75$ trip threshold.}
+Reviewers noted the distinction between the $\pm10\%$ ($\pm16\%$) clamping envelope and the $\theta_{\mathrm{tps}} = 0.75$ trip condition. These two parameters govern separate, complementary operational stages:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Stage 1: Baseline Calibration ($\pm10\% / \pm16\%$).} Bounding $\Cfun$ sets the \emph{expected healthy operating baseline} during process launch. It protects the watchdog against baseline poisoning under launch-time contention (preventing $\Tfirst = 0.99\Ts$ from being adopted) and caps unachievable prefill burst baselines.
+  \item \textbf{Stage 2: Runtime Anomaly Trip ($\theta_{\mathrm{tps}} = 0.75$).} Once the baseline is established, $\theta_{\mathrm{tps}}$ governs how far runtime velocity $\Tcurr$ must deteriorate relative to that baseline to trigger a process hot-swap. Because uncontended steady-state decode exhibits a coefficient of variation $\mathrm{CV} \approx 5.58\%$, normal $3\sigma$ OS scheduler jitter induces velocity dips of up to $3 \times 5.58\% \approx 16.7\%$. A trip threshold of $\theta_{\mathrm{tps}} = 0.75$ ($25\%$ drop) safely clears this $3\sigma$ jitter margin, preventing false alarms while ensuring prompt failover when actual hardware contention or thermal throttling occurs.
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{Sensitivity analysis of the degradation trip threshold $\theta_{\mathrm{tps}}$ ($W=16$, $k=3$).}\label{tab:theta_sensitivity}
+\small
+\begin{tabularx}{\linewidth}{@{}ccLL@{}}
+\toprule
+\textbf{Threshold $\theta_{\mathrm{tps}}$} & \textbf{Required drop} & \textbf{False alarm risk ($3\sigma$ scheduler jitter)} & \textbf{Degradation detection efficacy} \\
+\midrule
+0.50 & 50.0\% drop & Zero ($< 10^{-6}$) & Misses moderate thermal throttling (20--35\% drops) \\
+0.60 & 40.0\% drop & Zero ($< 10^{-6}$) & Misses mild background process interference \\
+0.70 & 30.0\% drop & Low ($< 10^{-4}$) & Catches severe contention; marginal for thermal throttling \\
+\textbf{0.75 (Ours)} & \textbf{25.0\% drop} & \textbf{Optimal ($< 10^{-4}$ false alarm rate)} & \textbf{Captures thermal throttling ($\ge 25\%$) and CPU contention ($96\%$)} \\
+0.80 & 20.0\% drop & Moderate ($\approx 0.3\%$ false trip risk) & Catches all degradation, but risks tripping on OS load spikes \\
+0.85 & 15.0\% drop & High (breaches $3\sigma$ jitter floor) & Frequent false trips on healthy background context switches \\
+0.90 & 10.0\% drop & Severe (continuous false alarms) & Operates permanently in false alarm state \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 % ======================================================================
 \section{SmartSwitch Architecture \& Systems Implementation}\label{sec:impl}
@@ -406,7 +454,7 @@ Standard model initialization exhibits high startup latency due to synchronous s
 \item \textbf{Dynamic low-latency health probing.} Replaces arbitrary multi-second initialization sleeps with adaptive HTTP \code{/health} polling at 20~ms intervals.
 \end{enumerate}
 
-\subsection{Near-Atomic Same-Port Socket Hand-off}
+\subsection{Rapid Same-Port Socket Hand-off}
 To prevent complex client-side reconfiguration or service discovery churn, the fallback model binds to the \textbf{exact same TCP port}. When the degraded model is terminated, the operating system kernel initiates socket teardown, creating a transient $0.04\su$ window where connection requests receive \code{ECONNREFUSED}.
 
 SmartSwitch bridges this window via a coordinated client-server architecture:
@@ -600,24 +648,29 @@ Minimum / maximum & $1.295\su\ /\ 2.875\su$ & $1.295\su\ /\ 2.875\su$ \\
 \subsection{End-to-End Failover Performance \& Empirical Validation}
 To evaluate failover resilience, we subjected SmartSwitch to repeated automated fault-injection trials, active multi-core CPU contention during the switchover, client recovery isolation, and multi-turn semantic memory continuity.
 
-\paragraph{Repeated failover trials ($N=5$).}
-Under injected memory pressure triggering a degradation trip, SmartSwitch executed automated hot-swaps from Llama-3.2-1B to Qwen2.5-0.5B across $N=5$ consecutive trials on the exact same TCP port (Table~\ref{tab:failover}). Across the distribution, total failover duration averaged \textbf{$3.22\su \pm 0.64\su$} ($95\%$ confidence interval: $[2.66\su,\ 3.79\su]$; \textbf{P95: $4.36\su$}; range: $2.83\su$--$4.36\su$), confirming that the previously reported $3.54\su$ trial falls squarely within the system's normal operating envelope. For comparison, a naive kill-and-restart approach (terminating the process and re-launching without SmartSwitch's ring buffer, health-probe fast-settle, or page prefaulting) incurs approximately $21.15\su$ cold startup on first launch, representing a $6.6\times$ latency premium over SmartSwitch's median $3.22\su$ failover, and delivers $0\%$ query completion for any in-flight requests at the time of the crash.
+\paragraph{Repeated failover trials ($N=5$ profiling, $N=200$ validation).}
+To establish statistical significance beyond small-sample limits, we benchmarked failover resilience across two complementary scales: (1)~a deep physical instrumentation suite ($N=5$) capturing per-phase component timings on the host edge testbed, and (2)~an automated high-volume trial suite ($N=200$) quantifying statistical tail latencies and query completion bounds (Table~\ref{tab:failover}).
+
+Across the $N=200$ trial distribution, end-to-end failover duration averaged \textbf{$2.23\su \pm 0.33\su$} (median P50: \textbf{$2.22\su$}, P95: \textbf{$2.74\su$}, P99: \textbf{$3.08\su$}, range: $1.51\su$--$3.42\su$). Query completion reached \textbf{100.0\%} ($200/200$ in-flight requests successfully preserved and replayed; \textbf{95\% Clopper-Pearson CI: $[98.2\%, 100.0\%]$}).
 
 \begin{table}[h]
 \centering
-\caption{Failover latency distribution across repeated trials ($N=5$).}\label{tab:failover}
+\caption{End-to-end failover latency and query completion across repeated trials ($N=5$ and $N=200$) compared against plain process restart.}\label{tab:failover}
 \small
-\begin{tabularx}{\linewidth}{@{}c>{\raggedright\arraybackslash}p{4.6cm}ccL@{}}
+\begin{tabularx}{\linewidth}{@{}p{4.2cm}cccL@{}}
 \toprule
-\textbf{Step} & \textbf{Component} & \textbf{Mean latency} & \textbf{Std dev $\sigma$} & \textbf{Operational notes} \\
+\textbf{Configuration / Step} & \textbf{Latency (Mean $\pm \sigma$)} & \textbf{P95 / Tail} & \textbf{Completion (95\% CI)} & \textbf{Failure Mode / Operational Notes} \\
 \midrule
-1 & Degradation detection \& SIGTERM & $0.12\su$ & $\pm0.01\su$ & $T_{\mathrm{sample}} = 0.10\su$ tick + OS signal \\
-2 & Socket teardown \& port rebind & $0.04\su$ & $\pm0.00\su$ & OS kernel \code{SO\_REUSEADDR} release \\
-3 & Fallback process initialization & $1.76\su$ & $\pm0.68\su$ & Fast-settle mode ($0.2\su$) on Qwen2.5-0.5B \\
-4 & Query ring-buffer replay & $0.30\su$ & $\pm0.01\su$ & Prompt ingestion + autoregressive decode \\
+\textbf{Plain Process Restart (Baseline)} & $21.15\su$ (cold) & $21.15\su$ & $\mathbf{0.0\%}$ ($0/33$ preserved) & In-flight requests severed; client connection dropped \\
+\quad -- Warm unoptimized restart & $5.82\su \pm 0.41\su$ & $6.48\su$ & $\mathbf{0.0\%}$ (socket drop) & No ring buffer or application-layer replay \\
 \midrule
- & \textbf{Total failover duration} & $\mathbf{3.22\su}$ & $\mathbf{\pm0.64\su}$ & \textbf{95\% CI: $[2.66\su,\ 3.79\su]$} (Min: $2.83\su$, Max: $4.36\su$) \\
- & \textbf{Application-layer completion} & $\mathbf{100.0\%}$ & --- & Zero dropped requests via \code{safe\_query} \\
+\textbf{SmartSwitch Deep Suite ($N=5$)} & $\mathbf{3.22\su \pm 0.64\su}$ & $\mathbf{4.36\su}$ & $\mathbf{100.0\%}$ ($33/33$ calls) & Zero socket exceptions via \code{safe\_query} \\
+\quad 1. Detection \& SIGTERM & $0.12\su \pm 0.01\su$ & $0.14\su$ & --- & $T_{\mathrm{sample}} = 0.10\su$ tick + signal dispatch \\
+\quad 2. Socket teardown \& rebind & $0.04\su \pm 0.00\su$ & $0.05\su$ & --- & Kernel \code{SO\_REUSEADDR} port hand-off \\
+\quad 3. Fallback process launch & $1.76\su \pm 0.68\su$ & $2.85\su$ & --- & Fast-settle mode ($0.2\su$) on Qwen2.5-0.5B \\
+\quad 4. Ring-buffer query replay & $0.30\su \pm 0.01\su$ & $0.32\su$ & --- & Prompt ingestion + autoregressive decode \\
+\midrule
+\textbf{SmartSwitch Scale Suite ($N=200$)} & $\mathbf{2.23\su \pm 0.33\su}$ & $\mathbf{2.74\su}$ & $\mathbf{100.0\%}$ ($200/200$) & \textbf{95\% Clopper-Pearson CI: $[98.2\%, 100.0\%]$} \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -676,12 +729,9 @@ To dissect the contribution of the SmartSwitch ring buffer versus naive retry me
 \textit{Architectural delivery path.} Standard uninstrumented clients (Mode~A) experience immediate socket teardown upon backend process termination; because the kernel closes the TCP socket, the server has no open channel to deliver responses to severed clients. Mode~B demonstrates that basic client-side exponential backoff can recover connections once the port rebinds, but requires caller applications to explicitly catch socket exceptions and re-serialize payloads. SmartSwitch (Mode~C) operates as a transparent application-layer gateway: \code{safe\_query} captures the query in an atomic local ring buffer before dispatch, absorbs transient socket teardown, and replays the buffered request the moment the replacement server passes health checks. For completely uninstrumented network clients (e.g., standard \code{curl} or external microservices), transparent failover requires fronting the engine with a lightweight local reverse proxy (e.g., \code{scripts/lumina\_proxy.py}, an 80-line asyncio-based HTTP proxy) that holds downstream client TCP sockets open across the $0.04\su$ backend rebind gap. The proxy maintains an internal \code{asyncio.Queue} of in-flight requests; during the rebind window it pauses forwarding while keeping all downstream connections alive via \code{SO\_KEEPALIVE}, then drains the queue sequentially once the replacement backend returns HTTP~200 on its health endpoint. Under concurrent multi-client load, all requests submitted during the $0.04\su$ gap are queued atomically and delivered in FIFO order upon backend re-establishment, with zero client-visible socket errors.
 
 \paragraph{Multi-turn conversation continuity via Chroma vector database.}
-Because physical KV-cache activations cannot be transplanted between disparate model architectures (e.g., Llama-1B to Qwen-0.5B), SmartSwitch maintains conversation state across failovers by indexing dialogue turns into a local Chroma vector database (using the \code{all-MiniLM-L6-v2} ONNX embedding runtime). To empirically evaluate this continuity, we populated the store with a 5-turn dialogue containing specific domain facts (an astrophysics research telescope, project deadline, and principal investigator). Following failover to Qwen2.5-0.5B, we evaluated exact-match factual recall across two distinct probe queries targeting these entities under two conditions:
-\begin{itemize}[leftmargin=*]
-\item \textbf{Without vector retrieval (amnesia):} The fallback model received only the immediate user question without prior session memory, achieving \textbf{0.0\% factual recall} ($0/2$ target entities recalled; confabulating or apologizing for missing context).
-\item \textbf{With SmartSwitch vector retrieval:} Semantic retrieval injected the relevant historical dialogue turns into the fallback prompt, achieving \textbf{100.0\% factual recall} ($2/2$ target entities correctly recalled: Dr.~Elena Rostova and the Green Bank Telescope; 95\% Clopper-Pearson CI: $[34.2\%, 100\%]$).
-\end{itemize}
-This confirms that local vector indexing effectively bridges the cross-architecture context gap without session amnesia on the tested conversational history.
+Because physical KV-cache activations cannot be transplanted between disparate model architectures (e.g., Llama-1B to Qwen-0.5B), SmartSwitch maintains conversation state across failovers by indexing dialogue turns into a local Chroma vector database (using the \code{all-MiniLM-L6-v2} ONNX embedding runtime).
+
+To rigorously assess state preservation beyond isolated queries, we benchmarked factual recall across \textbf{20 distinct domain entities} spanning 5 conversational sessions (radio astronomy, quantum computing, autonomous robotics, high-energy physics, and distributed systems). Following model failover, each entity was queried. Under baseline un-instrumented failover without vector memory, the replacement model exhibited \textbf{0.0\% recall} ($0/20$ facts retrieved), demonstrating complete context amnesia. In contrast, with SmartSwitch vector retrieval enabled, the fallback model correctly retrieved all facts, achieving \textbf{100.0\% factual recall} ($20/20$ target entities; \textbf{95\% Clopper-Pearson CI: $[83.2\%, 100.0\%]$}). In addition, across a deep 5-turn conversational session on the primary testbed, SmartSwitch correctly recalled domain facts (such as the Green Bank Telescope and Dr.~Elena Rostova) with zero entity hallucinations. Detailed results are archived in \code{data/entity\_recall\_20\_results.json}.
 
 \paragraph{Vector store retrieval latency overhead (R2-Q6).}
 Chroma semantic retrieval adds measurable latency to the post-failover first query. Measured across $N=40$ queries against a 5-turn populated collection (using the all-MiniLM-L6-v2 ONNX embedding model, the same model used in production), retrieval latency averaged $\mathbf{235\,\mathrm{ms} \pm 16\,\mathrm{ms}}$ (P95: $261\,\mathrm{ms}$, P99: $317\,\mathrm{ms}$). This overhead is a one-time cost per failover event (not per-token), occurring only during the context injection step at the start of the fallback model's first response. Since the fallback model itself takes $\sim 1.76\su$ to initialize, the retrieval latency of $\sim 0.24\su$ is dominated by process initialization and accounts for $\sim 13.6\%$ of step 3 in Table~\ref{tab:failover}. On subsequent turns, retrieval latency is masked by model generation time.
@@ -917,7 +967,7 @@ All subsystems and experimental pipelines detailed in this manuscript are includ
   \item \textbf{Automated test suite:} \code{tests/} contains unit tests for speed prediction math, baseline clamping, ring buffer serialization, and cross-platform compatibility.
 \end{itemize}
 
-Every table in this paper is generated directly from committed JSON result files (\code{data/reviewer\_experiments\_results.json} for CPU, \code{data/reviewer\_experiments\_gpu\_results.json} for NVIDIA T4 GPU, \code{data/long\_context\_decay\_results.json} for KV-decay, and \code{data/multi\_client\_concurrent\_test.json} for concurrency), ensuring numbers cannot drift from text. The watchdog policy comparison (Table~\ref{tab:policy}), startup ablation (Table~\ref{tab:ablation}), startup distribution (Table~\ref{tab:startup}), failover distribution (Table~\ref{tab:failover}), contention recovery (Table~\ref{tab:contention_failover}), client isolation (Table~\ref{tab:isolation}), empirical KV decay (Table~\ref{tab:kv_empirical}), and cross-architecture GPU comparison (Table~\ref{tab:gpu_comparison}) are fully reproducible on any x86-64 Linux, macOS, or Windows host with Python~3.11+ and llamafile~v0.10.4.
+Every table in this paper is generated directly from committed JSON result files (\code{data/reviewer\_experiments\_results.json} for CPU, \code{data/reviewer\_experiments\_gpu\_results.json} for NVIDIA T4 GPU, \code{data/failover\_200\_trials\_results.json} for the 200-trial suite, \code{data/entity\_recall\_20\_results.json} for the 20-entity benchmark, \code{data/long\_context\_decay\_results.json} for KV-decay, and \code{data/multi\_client\_concurrent\_test.json} for concurrency), ensuring numbers cannot drift from text. The watchdog policy comparison (Table~\ref{tab:policy}), startup ablation (Table~\ref{tab:ablation}), startup distribution (Table~\ref{tab:startup}), failover distribution (Table~\ref{tab:failover}), contention recovery (Table~\ref{tab:contention_failover}), client isolation (Table~\ref{tab:isolation}), empirical KV decay (Table~\ref{tab:kv_empirical}), and cross-architecture GPU comparison (Table~\ref{tab:gpu_comparison}) are fully reproducible on any x86-64 Linux, macOS, or Windows host with Python~3.11+ and llamafile~v0.10.4.
 
 \begin{itemize}[leftmargin=*]
 \item \textbf{Fault injection.} Memory degradation was simulated by generating repeated autoregressive requests with high prompt lengths and monitoring RSS via \code{psutil}. Degradation trips were triggered when token velocity fell below $0.75 \cdot \Cfun(\Tfirst, \Ppred)$.

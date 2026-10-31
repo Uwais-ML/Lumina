@@ -1,0 +1,9 @@
+{
+  "total_entities": 20,
+  "correct_retrievals": 20,
+  "recall_rate_pct": 100.0,
+  "ci_95_lower": 83.2,
+  "ci_95_upper": 100.0,
+  "amnesia_recall_pct": 0.0,
+  "mean_query_latency_ms": 442.52
+}

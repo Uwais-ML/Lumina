@@ -1,0 +1,14 @@
+{
+  "total_trials": 200,
+  "successful_trials": 200,
+  "completion_rate": 100.0,
+  "ci_95_lower": 98.17,
+  "ci_95_upper": 100.0,
+  "mean_s": 2.23,
+  "std_s": 0.33,
+  "p50_s": 2.22,
+  "p95_s": 2.74,
+  "p99_s": 3.08,
+  "min_s": 1.51,
+  "max_s": 3.42
+}
