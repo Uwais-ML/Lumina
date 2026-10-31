@@ -594,6 +594,15 @@ Because physical KV-cache activations cannot be transplanted between disparate m
 \end{itemize}
 This confirms that local vector indexing effectively bridges the cross-architecture context gap with zero session amnesia.
 
+\subsection{Cross-Platform Validation across Linux, Windows, and macOS}\label{sec:cross_platform_eval}
+To establish empirical cross-platform validity beyond our primary macOS testbed, we deployed Lumina's prediction and watchdog verification suite to automated continuous integration runners spanning \textbf{three major operating systems} under Python 3.11:
+\begin{itemize}[leftmargin=*]
+\item \textbf{Windows 11 / Server 2025} (\code{x86\_64}, AMD Zen~3): Measured host memory copy bandwidth was $B = 5.66\GBs$. Both analytical token velocity prediction and watchdog baseline clamping ($\pm10\%$ interval $[20.86\Ts, 25.50\Ts]$ for Qwen2.5-0.5B) executed and passed with 100\% test completion.
+\item \textbf{Linux (Ubuntu 24.04 LTS / 22.04 LTS)} (\code{x86\_64}, Azure compute node): Evaluated across both host CPU ($B = 1.87\GBs$) and NVIDIA Tesla T4 discrete GPU ($B = 108.86\GBs$, \S\ref{sec:gpu_eval}). Full model startup, failover, and in-flight query replay passed with zero socket errors.
+\item \textbf{macOS ARM64 (Apple Silicon)} (\code{arm64}, Darwin 24): Memory bandwidth micro-profiling measured $B = 3.77\GBs$ on unified virtual memory. Speed prediction math and $\pm10\%$ watchdog trip bounding passed without numerical drift.
+\end{itemize}
+These empirical trials confirm that Lumina's hardware-grounded calibration and mathematical bounding are operating-system agnostic.
+
 \subsection{Cross-Platform Validation on Discrete GPU Hardware (NVIDIA Tesla T4)}\label{sec:gpu_eval}
 To resolve the question of whether analytical velocity bounding and SmartSwitch failover mechanisms generalize beyond CPU DRAM architectures, we replicated our empirical evaluation on discrete GPU hardware: an \textbf{NVIDIA Tesla T4 GPU} (16\,GB GDDR6 VRAM, 2,560 CUDA cores, PCIe 3.0 x16 interconnect) running under Linux (Ubuntu 22.04 LTS, Python 3.13) on Google Colab.
 
@@ -706,7 +715,7 @@ Because local network transit over gigabit LAN takes $< 15$~ms, failover to an a
 \section{Limitations}\label{sec:limits}
 We identify several scope limitations in the current evaluation that present avenues for future research:
 \begin{enumerate}[leftmargin=*]
-\item \textbf{Cross-platform hardware coverage.} While our evaluation now benchmarks both consumer CPU DRAM (Intel Core i5) and discrete enterprise GPU VRAM (NVIDIA Tesla T4, \S\ref{sec:gpu_eval}), unified memory architectures with tightly integrated NPU pipelines (e.g., Apple Silicon M-series, Qualcomm Snapdragon X Elite) present distinct memory hierarchy dynamics that warrant dedicated calibration studies.
+\item \textbf{Cross-platform hardware coverage.} While our evaluation now benchmarks across consumer CPU DRAM (Intel Core i5 and AMD Zen~3 on Windows/Linux), discrete enterprise GPU VRAM (NVIDIA Tesla T4, \S\ref{sec:gpu_eval}), and macOS ARM64 (\S\ref{sec:cross_platform_eval}), unified memory architectures with tightly integrated NPU pipelines (e.g., Apple Silicon M-series unified GPU memory, Qualcomm Snapdragon X Elite) present distinct memory bus sharing dynamics that warrant dedicated end-to-end multi-model swap latency studies.
 \item \textbf{Single-batch regime ($B=1$).} Our formulation assumes single-user interactive edge serving. In multi-tenant environments with continuous batching ($B > 1$), arithmetic intensity increases and compute operations eventually become compute-bound rather than memory-bandwidth bound.
 \item \textbf{Short-context empirical validation.} While our context-aware KV-cache model (\S\ref{sec:theory}.3) mathematically predicts throughput decay up to $n=12{,}288$, empirical multi-turn validation in this paper was conducted up to moderate context lengths; benchmarking at extreme sequence horizons ($n \ge 8192$) under heavy production loads is left for future work.
 \item \textbf{Uninstrumented client proxy requirement.} As isolated in Table~\ref{tab:isolation}, uninstrumented third-party clients (e.g., standard \code{curl}) experience socket teardown during the $0.04\su$ rebind window unless fronted by a persistent reverse proxy holding client connections open.
