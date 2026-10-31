@@ -367,7 +367,7 @@ Before any HTTP payload is dispatched across the network socket, SmartSwitch ser
 Standard model initialization exhibits high startup latency due to synchronous single-threaded I/O, sequential page faults, and terminal logging overhead. SmartSwitch incorporates three low-level systems optimizations in \code{launch\_model.py}:
 \begin{enumerate}[leftmargin=*]
 \item \textbf{Asymmetric thread concurrency.} Allocates physical CPU cores to autoregressive generation (\code{-t 4}) to prevent hyperthreading cache contention, while dedicating all \textbf{8 logical CPU threads} (\code{-tb 8}) to parallel prompt evaluation and dequantization.
-\item \textbf{Kernel page-cache pre-faulting.} Prior to spawning the server binary, SmartSwitch triggers kernel sequential readahead via \code{fcntl(fd, 45, 1)} (\code{F\_RDAHEAD} on macOS) or \code{posix\_fadvise(POSIX\_FADV\_WILLNEED)} on Linux, streaming model weights into memory at storage bus speed.
+\item \textbf{Kernel page-cache pre-faulting.} Prior to spawning the server binary, SmartSwitch triggers sequential storage readahead to stream model weights into RAM at physical bus limits. On macOS, this is implemented via \code{fcntl(fd, 45, 1)} (\code{F\_RDAHEAD}); on Linux, via \code{posix\_fadvise(POSIX\_FADV\_WILLNEED)}; and on Windows, via memory-mapped sequential pre-touching (\code{FILE\_FLAG\_SEQUENTIAL\_SCAN} with mapped buffer warming), ensuring cross-platform initialization acceleration.
 \item \textbf{Dynamic low-latency health probing.} Replaces arbitrary multi-second initialization sleeps with adaptive HTTP \code{/health} polling at 20~ms intervals.
 \end{enumerate}
 
@@ -601,7 +601,7 @@ To establish empirical cross-platform validity beyond our primary macOS testbed,
 \item \textbf{Linux (Ubuntu 24.04 LTS / 22.04 LTS)} (\code{x86\_64}, Azure compute node): Evaluated across both host CPU ($B = 1.87\GBs$) and NVIDIA Tesla T4 discrete GPU ($B = 108.86\GBs$, \S\ref{sec:gpu_eval}). Full model startup, failover, and in-flight query replay passed with zero socket errors.
 \item \textbf{macOS ARM64 (Apple Silicon)} (\code{arm64}, Darwin 24): Memory bandwidth micro-profiling measured $B = 3.77\GBs$ on unified virtual memory. Speed prediction math and $\pm10\%$ watchdog trip bounding passed without numerical drift.
 \end{itemize}
-These empirical trials confirm that Lumina's hardware-grounded calibration and mathematical bounding are operating-system agnostic.
+\paragraph{Evaluation scope clarification.} We adopt a two-tier validation approach: \emph{Tier 1} comprises deep empirical profiling (contention stress sweeps, startup ablation, client isolation modes, and multi-turn vector DB recall) conducted across our primary macOS CPU and Linux/NVIDIA GPU testbeds. \emph{Tier 2} comprises automated CI verification across Windows 11, Linux, and macOS ARM64 confirming that memory profiling, inverse-size velocity prediction, and watchdog bounding windows transfer across OS kernels and CPU architectures without drift.
 
 \subsection{Cross-Platform Validation on Discrete GPU Hardware (NVIDIA Tesla T4)}\label{sec:gpu_eval}
 To resolve the question of whether analytical velocity bounding and SmartSwitch failover mechanisms generalize beyond CPU DRAM architectures, we replicated our empirical evaluation on discrete GPU hardware: an \textbf{NVIDIA Tesla T4 GPU} (16\,GB GDDR6 VRAM, 2,560 CUDA cores, PCIe 3.0 x16 interconnect) running under Linux (Ubuntu 22.04 LTS, Python 3.13) on Google Colab.
