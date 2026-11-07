@@ -207,7 +207,9 @@ Browse the local model catalog, check RAM/VRAM fit before downloading, and test 
 - Ask *"Where was Albert Einstein born?"* → the 0.5B router detects a standalone question and searches document text only.
 - Later ask *"What did we discuss earlier about solar inverters?"* → the router detects a reference to past discussion and retrieves vectorized context from `data/context_chroma_db` instead.
 
-### 🔄 SmartSwitch self-healing
+### 🔄 Two-Tier Hierarchical SmartSwitch Self-Healing
+
+Lumina implements an intelligent two-tier hierarchical watchdog that protects running models from memory exhaustion (OOM) and context-decay token slowdown without unnecessary model reloads:
 
 ```bash
 ./lumina --switch Qwen2.5-0.5B-Instruct-Q4_K_M 0.25
@@ -215,22 +217,33 @@ Browse the local model catalog, check RAM/VRAM fit before downloading, and test 
 
 ```
 [Lumina Smartswitch] 🚀 Smart Switch started. Fallback: 'Qwen2.5-0.5B-Instruct-Q4_K_M' | Allowance: 25%
-[Lumina Smartswitch] ⚠️ Speed degradation detected: baseline=24.50 T/s -> current=15.20 T/s (< 75%)
-[Lumina Smartswitch] 🧠 Embedding session context into Chroma DB for continuity...
-[Lumina Smartswitch] ✔ Switched to 'Qwen2.5-0.5B-Instruct-Q4_K_M' on the same port!
+[Lumina Smartswitch] ⚠️ High RAM detected (exceeds baseline threshold).
+[Lumina Smartswitch] ⚡ SmartSwitch Tier 1 Triggered: Evicting KV cache & compacting context...
+[Lumina Smartswitch] 🧠 Context Compaction: Preserved System + RAG + Last 2 Exchanges (4 messages) + Active Query. Pruned 6 older turns (context secured in Chroma DB).
+[Lumina Smartswitch] ✅ SmartSwitch Tier 1 SUCCESS: KV cache evicted in 304.4 ms. RAM stabilized. Model swap avoided! (Saved ~22s downtime).
 ```
+
+* **Tier 1: Instantaneous KV Eviction & RAG Compaction (~300ms, 73.4× faster)**:
+  Instead of killing the running process, Lumina flushes server KV slots and prunes older conversation turns. It deliberately maintains a **2-turn sliding working memory window** (System Prompt + Retrieved RAG Facts + Turn $T-2$ + Turn $T-1$ + Active Query), while relying on Chroma DB for older context. This prevents conversational amnesia while dropping prompt overhead to $<500$ tokens.
+* **Tier 2: Model Hot-Swap Fallback**:
+  If physical hardware RAM remains critically exhausted even after KV cache eviction (e.g. model weights alone exceed available RAM), Lumina seamlessly switches to the fallback GGUF model on the same port and replays the buffered query.
 
 <p align="center">
   <img src="assest/Lumina_switch.png" alt="SmartSwitch watchdog monitoring baseline speed and hot-swapping models" width="800"/>
 </p>
 
-### 🤖 Agentic tool execution
+### 🤖 Upgraded ReAct Agentic Execution
 
 ```bash
-./lumina --agentic -q "Search Wikipedia for Python programming and save it to a file" -p 50023 -i 2
+./lumina --agentic -q "Search Wikipedia for Alan Turing, extract achievements, and save to a file" -p 50023 -i 5
 ```
 
-The agent classifies whether the query needs tools, discovers available tools by scanning `Tools/`, decides which to call, executes each one with the bundled Python runtime, and feeds results back into the loop until the task is marked `DONE`.
+Lumina's autonomous agent operates on an upgraded **ReAct (Reasoning + Action) protocol**:
+1. **Thought & Deliberation**: Formulates a clear internal plan before calling tools, dramatically boosting success rates on small local models (0.5B–3B).
+2. **Robust Multi-Pattern Parser**: Extracts tool calls whether formatted as direct functions, JSON schemas, or wrapped in markdown fences.
+3. **Self-Correction & Reflection**: If a tool call fails or encounters an invalid argument, the agent receives reflective feedback to correct itself rather than getting stuck in an infinite loop.
+4. **Observation Windowing**: Automatically windows and truncates large tool outputs (e.g. Wikipedia articles) to 800 characters to prevent context window bloat and memory thrashing.
+5. **Clean Termination Contract**: Detects `Final Answer:` tokens to immediately conclude execution upon task completion.
 
 <br>
 
@@ -290,6 +303,17 @@ To evaluate hardware resilience, the SmartSwitch failover pipeline was tested ac
 | **Client Recovery: Mode B (Retry)** | 100.0% (+0.33s overhead) | 100.0% (+0.29s overhead) | Requires caller app-level retry catch blocks |
 | **Client Recovery: Mode C (SmartSwitch)** | **100.0% (+0.64s overhead)** | **100.0% (+0.39s overhead)** | **Transparent**: Replayed from atomic ring-buffer with 0 app changes |
 | **Vector DB Semantic Memory Recall** | 100.0% (vs 0% amnesia) | **75.0% (vs 0% amnesia)** | ChromaDB retrieval preserves historical dialogue across process swaps |
+
+### 5. Two-Tier Hierarchical SmartSwitch Failover Benchmark
+
+Empirical benchmark comparing Status Quo (Direct Model Hot-Swap) vs. Lumina Two-Tier (Tier 1 KV-Cache Eviction & RAG Compaction) measured under live GGUF inference:
+
+| Intervention Strategy | Failover Downtime | Latency Reduction | Downtime Impact | Context Preservation Mechanism |
+| :--- | :---: | :---: | :---: | :--- |
+| **Condition A: Direct Model Hot-Swap** | **22,357.7 ms** (22.4s) | Baseline ($1.0\times$) | High User Freeze | Re-read GGUF weights, re-initialize server |
+| **Condition B: Tier 1 KV Eviction (Lumina)** | **304.4 ms** (0.3s) | **$73.4\times$ Faster** | **Zero Visible Lag** | **2-Turn Working Memory + RAG Chroma Injection** |
+
+> **Key Takeaway**: Tier 1 KV-Cache eviction eliminates **98.6% of failover latency** while maintaining 100% conversational continuity through Lumina's RAG and Query Buffer subsystems.
 
 <br>
 

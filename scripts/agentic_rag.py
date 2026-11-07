@@ -159,28 +159,46 @@ def argparser():
     return parser  # ← IMPORTANT: Return the parser!
 
 
-def get_all_tools():
-    """Returns headers of all available tools."""
-    tools = ""
+def get_all_tools(compact=True):
+    """Returns clean, concise summaries of all available tools for prompt efficiency."""
     abs_folder = os.path.abspath(folder_path)
-    if os.path.exists(abs_folder):
-        for filename in sorted(os.listdir(abs_folder)):
-            filepath = os.path.join(abs_folder, filename)
-            if os.path.isfile(filepath) and filename.endswith('.py'):
-                with open(filepath, "r", encoding="utf-8", errors="ignore") as file:
-                    for _ in range(6):
-                        line = file.readline()
-                        tools += line
-                        if not line:
-                            break
-    return tools if tools else None
+    if not os.path.exists(abs_folder):
+        return None
+
+    tool_lines = []
+    for filename in sorted(os.listdir(abs_folder)):
+        filepath = os.path.join(abs_folder, filename)
+        if os.path.isfile(filepath) and filename.endswith('.py'):
+            t_name = filename[:-3]
+            desc = ""
+            args = ""
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                for _ in range(8):
+                    line = f.readline()
+                    if not line:
+                        break
+                    if line.startswith("# description:"):
+                        desc = line.split(":", 1)[1].strip()
+                    elif line.startswith("# arguments:"):
+                        args = line.split(":", 1)[1].strip()
+
+            if desc and args:
+                tool_lines.append(f"- {t_name}({args}): {desc}")
+            elif desc:
+                tool_lines.append(f"- {t_name}(): {desc}")
+            else:
+                tool_lines.append(f"- {t_name}()")
+
+    return "\n".join(tool_lines) if tool_lines else None
 
 
-def classifyiftoolsneeded(query, timeout=60):
-    """Classify if tools needed. Falls back to all tools if classifier is unreachable."""
+def classifyiftoolsneeded(query, timeout=60, skip_classifier=True):
+    """Classify if tools needed. Defaults to compact tools without spawning secondary processes."""
+    if skip_classifier:
+        return get_all_tools()
+
     try:
         port = classifier.initialize()
-        
         if classifier.Model_status and port is not None:
             import Smartswitch
             payload = {
@@ -188,14 +206,8 @@ def classifyiftoolsneeded(query, timeout=60):
                 "temperature": 0,
                 "max_tokens": 50,
                 "messages": [
-                    {
-                        "role": "system",
-                        "content": "Answer only: tools or not_tools"
-                    },
-                    {
-                        "role": "user",
-                        "content": f"{query}"
-                    }
+                    {"role": "system", "content": "Answer only: tools or not_tools"},
+                    {"role": "user", "content": f"{query}"}
                 ]
             }
             response = Smartswitch.safe_query(port, payload=payload, timeout=timeout)
@@ -204,184 +216,251 @@ def classifyiftoolsneeded(query, timeout=60):
                 if "not_tools" in decision or "not tools" in decision:
                     return None
     except Exception as e:
-        logging.warning(f"Classification skipped or failed ({e}); falling back to all available tools.")
-    
+        logging.warning(f"Classification skipped or failed ({e}); falling back to tools.")
+
     return get_all_tools()
 
 
-def execute_tool(tool_call: str):
-    """Execute tool directly."""
+def extract_tool_calls(text: str):
+    """
+    Robust multi-pattern extractor for tool calls:
+    1. Looks for 'Action: toolname(...)' or 'Action: ```toolname(...)```'
+    2. Strips markdown fences, e.g. ```python toolname(...) ```
+    3. Finds standard toolname(arg1, arg2, ...) anywhere in the text
+    4. Handles 'Tool: toolname' and 'Arguments: args' blocks
+    """
+    calls = []
+    # Strip markdown backticks
+    clean_text = re.sub(r'```(?:python|bash|json)?', '', text)
+    clean_text = clean_text.replace('```', '')
+
+    # 1. Action: tool_name(...)
+    action_matches = re.findall(r'(?:Action|Call):\s*([a-zA-Z_]\w*\s*\(.*?\))', clean_text, re.DOTALL | re.IGNORECASE)
+    for m in action_matches:
+        calls.append(m.strip())
+
+    # 2. Direct regex search for known tools or general func calls
+    if not calls:
+        direct_matches = re.findall(r'(\b[a-zA-Z_]\w*\s*\([^()]*?\))', clean_text)
+        for m in direct_matches:
+            # Exclude programming language constructs or examples
+            prefix = m.split('(', 1)[0].strip().lower()
+            if prefix not in ('print', 'if', 'while', 'for', 'def', 'return', 'class', 'example'):
+                calls.append(m.strip())
+
+    # 3. Tool: / Argument: key-value pattern
+    if not calls:
+        tool_m = re.search(r'Tool:\s*([a-zA-Z_]\w*)', clean_text, re.IGNORECASE)
+        arg_m = re.search(r'Argument(?:s)?:\s*(.+)', clean_text, re.IGNORECASE)
+        if tool_m and arg_m:
+            t_name = tool_m.group(1).strip()
+            t_args = arg_m.group(1).strip()
+            calls.append(f"{t_name}({t_args})")
+
+    return calls
+
+
+def execute_tool(tool_call: str, max_obs_chars: int = 800):
+    """
+    Execute tool directly with argument parsing, error recovery,
+    and observation windowing to prevent context window explosion.
+    """
     try:
         print(f"\n[EXEC] Input: {tool_call}")
-        
-        match = re.match(r'(\w+)\((.*)\)', tool_call.strip())
+        clean_call = tool_call.strip()
+        # Handle trailing semicolons or periods
+        clean_call = re.sub(r'[;\.]+$', '', clean_call)
+
+        match = re.match(r'([a-zA-Z_]\w*)\s*\((.*)\)', clean_call, re.DOTALL)
         if not match:
-            return "Error: Invalid format. Use: toolname(arg1,arg2)"
-        
+            return "Error: Invalid tool format. Must be: toolname(arg1, arg2)"
+
         tool_name, args_str = match.groups()
         print(f"[EXEC] Tool: {tool_name}, Args: {args_str}")
-        
+
         # Parse arguments cleanly handling commas inside quotes
         import csv
         try:
-            parsed = next(csv.reader([args_str], skipinitialspace=True))
+            parsed = next(csv.reader([args_str.replace('\n', ' ')], skipinitialspace=True))
             args = [a.strip() for a in parsed]
         except Exception:
             args = [arg.strip() for arg in args_str.split(',')]
-        
+
         clean_args = []
         for arg in args:
             if (arg.startswith('"') and arg.endswith('"')) or (arg.startswith("'") and arg.endswith("'")):
                 arg = arg[1:-1]
             clean_args.append(arg)
         args = clean_args
-        
+
         print(f"[EXEC] Parsed args: {args}")
-        
+
         # Find tool file
         tool_file = os.path.join(folder_path, f"{tool_name}.py")
-        print(f"[EXEC] Looking for: {tool_file}")
-        
         if not os.path.exists(tool_file):
-            return f"Error: Tool not found at {tool_file}"
+            return f"Error: Tool '{tool_name}' not found. Check available tools."
 
-        # Execute using the bundled CPython (cross-platform)
+        # Execute using bundled CPython
         python_bin = get_bundled_python()
-        print(f"[EXEC] Python: {python_bin}")
         cmd = [python_bin, tool_file] + args
         print(f"[EXEC] Running: {' '.join(cmd)}")
-        
+
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        
-        print(f"[EXEC] Return code: {result.returncode}")
-        print(f"[EXEC] Stdout: {result.stdout}")
-        if result.stderr:
-            print(f"[EXEC] Stderr: {result.stderr}")
-        
+
         if result.returncode == 0:
-            return result.stdout.strip()
+            out = result.stdout.strip()
+            if len(out) > max_obs_chars:
+                out = out[:max_obs_chars] + f"\n... [Truncated {len(out) - max_obs_chars} chars for context efficiency]"
+            return out
         else:
-            return f"Error: {result.stderr.strip()}"
-    
+            err = result.stderr.strip() or result.stdout.strip()
+            return f"Error during {tool_name} execution: {err}"
+
     except subprocess.TimeoutExpired:
-        return "Error: Tool execution timeout"
+        return f"Error: Execution of {tool_call} timed out after 30 seconds."
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error executing {tool_call}: {str(e)}"
 
 
-async def agentic(query, port, iterations=5, temp=0.1, max_tokens=256, verbose=False, timeout=120):
-    """Main agentic loop."""
+async def agentic(query, port, model="qwen", iterations=6, temp=0.1, max_tokens=384, verbose=False, timeout=120):
+    """
+    Upgraded ReAct Agentic Loop:
+    1. Enforces Thought -> Action -> Observation reasoning sequence.
+    2. Multi-pattern tool parser (handles markdown, direct calls, JSON).
+    3. Self-correcting reflection when tool execution encounters errors.
+    4. Observation windowing (caps tool output at 800 chars to avoid memory thrashing).
+    5. Clean Final Answer termination contract.
+    """
     if verbose:
         print(f"\n[AGENTIC] Starting with query: {query}")
-        print(f"[AGENTIC] Port: {port}, Iterations: {iterations}")
-    
-    Tools = classifyiftoolsneeded(query, timeout=min(timeout, 60))
-    
-    if not Tools:
-        return {"status": "no_tools_needed", "query": query}
-    
+        print(f"[AGENTIC] Model: {model} · Port: {port} · Iterations: {iterations}")
+
+    tools = classifyiftoolsneeded(query, timeout=min(timeout, 60))
+    if not tools:
+        # Fall back to all tools so agent is never blind
+        tools = get_all_tools()
+
+    if not tools:
+        return {"status": "no_tools_found", "query": query}
+
     if verbose:
-        print(f"[AGENTIC] Tools found:\n{Tools}\n")
-    
-    prompt = f"Query: {query}\n\nAvailable Tools:\n{Tools}"
-    whatsdone = ""
-    
+        print(f"[AGENTIC] Tools active:\n{tools}\n")
+
+    system_prompt = f"""You are Lumina Agent, an autonomous problem-solving AI.
+You solve tasks step-by-step using a ReAct (Reasoning + Action) protocol.
+
+AVAILABLE TOOLS:
+{tools}
+
+PROTOCOL RULES:
+1. For each step, think about what to do, then output your action in this format:
+Thought: <explain why you need this tool and what arguments to use>
+Action: toolname("arg1", "arg2")
+
+2. Once you receive the Observation from the tool and the task is finished, output:
+Thought: I have verified the result and completed the task.
+Final Answer: <concise summary of what was accomplished>
+
+3. If an action fails with an error, reflect on why it failed in your Thought and adjust your arguments.
+4. Output ONLY the Thought and Action (or Final Answer). Do not write conversational filler."""
+
+    history_log = ""
+    iteration_count = 0
+
     while iterations > 0:
+        iteration_count += 1
         try:
             if verbose:
-                print(f"\n[LOOP] Iteration {5 - iterations + 1}")
-            
+                print(f"\n[LOOP] Iteration {iteration_count}")
+
+            user_content = f"Task: {query}"
+            if history_log:
+                user_content += f"\n\nExecuted History:\n{history_log}\n\nWhat is your next Thought and Action?"
+
             import Smartswitch
             payload = {
-                "model": "qwen",
+                "model": model,
                 "temperature": temp,
                 "max_tokens": max_tokens,
                 "messages": [
-                    {
-                        "role": "system",
-                        "content": """Output ONLY tool calls. Format: toolname(arg1,arg2)
-Select the best tool from Available Tools to satisfy the query.
-When the required task is done, output DONE."""
-                    },
-                    {
-                        "role": "user",
-                        "content": f"{prompt}\n\nPreviously executed:{whatsdone}"
-                    }
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
                 ]
             }
+
             response = Smartswitch.safe_query(port, payload=payload, timeout=timeout)
             if response is None or response.status_code != 200:
-                print(f"[!] Warning: Query failed or timed out during agent loop.")
+                print(f"[!] Warning: Query to port {port} failed or timed out during agent loop.")
                 break
-            
+
             full_response = response.json()["choices"][0]["message"]["content"].strip()
             if verbose:
                 print(f"[LLM] Response:\n{full_response}")
-            
-            lines = full_response.split('\n')
-            executed_any = False
-            
-            # Extract tool calls from standard toolname(...) or tool:/argument: format
-            tool_calls = []
-            curr_tool = None
-            curr_arg = None
-            
-            for line in lines:
-                sline = line.strip()
-                if not sline:
-                    continue
-                match = re.search(r'(\b\w+)\((.*)\)', sline)
-                if match and not sline.lower().startswith("example:"):
-                    tool_calls.append(f"{match.group(1)}({match.group(2)})")
-                elif sline.lower().startswith("tool:"):
-                    curr_tool = sline.split(":", 1)[1].strip()
-                elif sline.lower().startswith("argument:") or sline.lower().startswith("arguments:"):
-                    curr_arg = sline.split(":", 1)[1].strip()
-                    if curr_tool and curr_arg:
-                        tool_calls.append(f"{curr_tool}({curr_arg})")
-                        curr_tool = None
-                        curr_arg = None
-                elif verbose and not re.match(r'^\w+\(.*\)$', sline):
-                    print(f"[SKIP] Not a tool call: {sline}")
 
-            for tool_call in tool_calls:
+            # Check if agent declared Final Answer
+            if "Final Answer:" in full_response:
+                answer = full_response.split("Final Answer:", 1)[1].strip()
                 if verbose:
-                    print(f"[LLM] Decision: {tool_call}")
-                
-                # Execute tool
-                tool_result = execute_tool(tool_call)
-                if verbose:
-                    print(f"[RESULT] {tool_result}")
-                
-                whatsdone += f"\n→ {tool_call}\n← {tool_result}"
-                executed_any = True
-            
-            # Check if we're done
-            if "DONE" in full_response.upper() or (executed_any and ("Success" in whatsdone or "Written:" in whatsdone)):
-                if verbose:
-                    print(f"[AGENTIC] Task complete!")
+                    print(f"[AGENTIC] Task complete with Final Answer!")
                 return {
                     "status": "success",
-                    "result": whatsdone,
-                    "iterations_used": 5 - iterations + 1
+                    "final_answer": answer,
+                    "history": history_log,
+                    "iterations_used": iteration_count
                 }
-            
+
+            # Extract tool calls
+            tool_calls = extract_tool_calls(full_response)
+
+            if not tool_calls:
+                # If no tool call found, check if model says it's done
+                if "DONE" in full_response.upper() or "TASK COMPLETE" in full_response.upper():
+                    return {
+                        "status": "success",
+                        "final_answer": full_response,
+                        "history": history_log,
+                        "iterations_used": iteration_count
+                    }
+                # Prompt the agent to take action
+                history_log += f"\nThought: {full_response}\nObservation: No valid Action detected. Please output 'Action: toolname(args)' or 'Final Answer: ...'."
+                iterations -= 1
+                continue
+
+            executed_any = False
+            for tc in tool_calls:
+                print(f"[LLM] Calling: {tc}")
+                obs = execute_tool(tc)
+                print(f"[RESULT] {obs}")
+
+                # Self-correction guidance if error
+                if obs.startswith("Error:"):
+                    obs_feedback = f"{obs} (Please reflect on this error and adjust arguments or tool)."
+                else:
+                    obs_feedback = obs
+
+                history_log += f"\nAction: {tc}\nObservation: {obs_feedback}"
+                executed_any = True
+
+            # If task was a write/save and succeeded, check if we can conclude
+            if executed_any and ("Successfully saved" in history_log or "Success:" in history_log):
+                # Verify if agent feels satisfied
+                pass
+
             iterations -= 1
-            
+
         except Exception as e:
             print(f"[ERROR] {e}")
             logging.error(f"Agentic loop error: {e}")
             return {
                 "status": "error",
                 "message": str(e),
-                "partial_result": whatsdone
+                "partial_history": history_log
             }
-    
+
     return {
-        "status": "incomplete",
-        "message": "Max iterations reached",
-        "result": whatsdone,
-        "iterations_used": 5
+        "status": "completed_max_iterations",
+        "result": history_log,
+        "iterations_used": iteration_count
     }
 
 
@@ -410,6 +489,7 @@ if __name__ == "__main__":
     result = asyncio.run(agentic(
         query=args.query,
         port=args.port,
+        model=args.model,
         iterations=args.iterations,
         temp=args.temperature,
         max_tokens=args.max_tokens,

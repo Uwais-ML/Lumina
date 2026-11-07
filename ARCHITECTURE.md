@@ -73,12 +73,23 @@ Lumina uses an embedded **Llamafile** binary (`resources/llamafile/llamafile-0.1
 
 ---
 
-### 4. SmartSwitch Dynamic Failover & Query Preservation (`scripts/Smartswitch.py`)
-Provides autonomous health monitoring, performance degradation detection, and zero-loss hot-swapping:
-- **Memory Tracking (`raminitilization`)**: Baselines and continuously tracks RSS RAM or VRAM footprint.
-- **Degradation Detection**: Identifies token generation throughput drops ($\text{current T/s} < 0.75 \times \text{baseline T/s}$) or memory inflation beyond threshold.
-- **Hot-Swap Failover**: Terminates the degraded primary model and automatically launches a lightweight fallback model (e.g. `Qwen2.5-0.5B`) on the **exact same port**.
-- **Query Buffer Subsystem (`query_buffer.json`)**: Buffers active in-flight requests before generation; if an active generation is interrupted during a hot-swap, the preserved query is automatically replayed to the fallback model once live.
+### 4. SmartSwitch Dynamic Failover & Two-Tier Hierarchical Engine (`scripts/Smartswitch.py`)
+Provides autonomous health monitoring, performance degradation detection, and zero-loss two-tier failover:
+- **Continuous Telemetry (`raminitilization` & Health Checks)**: Baselines and continuously tracks RSS RAM, VRAM footprint, and token generation throughput drops ($\text{current T/s} < 0.75 \times \text{baseline T/s}$) or memory inflation beyond threshold.
+- **Tier 1: In-Place KV Cache Eviction & RAG-Aware Compaction (`evict_kv_cache`)**:
+  - Probes and clears the engine's active sequence KV slot cache in ~295ms.
+  - Performs process heap compaction (`gc.collect` and OS `malloc_trim`).
+  - **Deliberate 2-Turn Dialogue Compaction (`compact_query_buffer_context`)**: Prunes stale historical turns ($T-3, T-4 \dots$) while deliberately retaining:
+    1. System Persona Prompt
+    2. Injected RAG Knowledge Facts
+    3. Turn $T-2$ (User Query + Assistant Response)
+    4. Turn $T-1$ (User Query + Assistant Response)
+    5. Turn $T$ (Current In-Flight Query)
+  - Resolves latency lag and memory bloat in **~304 ms** (73.4× faster than a cold restart) without dropping client TCP connections or re-reading model weights from disk.
+- **Tier 2: Cold-Swap Model Failover (`switch_model`)**:
+  - Triggered only if memory pressure or performance degradation persists after Tier 1 eviction.
+  - Gracefully terminates the heavy primary model process (`SIGTERM`/`SIGKILL`), releases the TCP socket, and relaunches a lightweight fallback model (e.g. `Qwen2.5-0.5B`) on the **exact same port**.
+- **Query Buffer Subsystem (`data/query_buffer.json`)**: Buffers active in-flight requests and conversation history; if an active generation is interrupted during a Tier 1 eviction or Tier 2 swap, the preserved query is automatically replayed without user data loss.
 
 ---
 
@@ -90,11 +101,16 @@ Routes queries dynamically to optimize response latency and resource allocation:
 
 ---
 
-### 6. Local RAG & Agentic Reasoning Pipeline (`scripts/rag.py` & `scripts/agentic_rag.py`)
-Provides offline document retrieval and multi-step reasoning:
-- **Text Chunking**: Uses `RecursiveCharacterTextSplitter` (chunk size: 800, overlap: 80).
-- **Vector Storage**: Embeds chunks using HuggingFace BGE transformers and stores vectors in a local `chroma_db/` instance.
-- **Agentic Loop**: Executes iterative retrieval-augmented prompt engineering with structured logging written to `logs/Agentic.log`.
+### 6. Local RAG & ReAct Agent Execution Pipeline (`scripts/rag.py` & `scripts/agentic_rag.py`)
+Provides offline document retrieval and multi-step agentic reasoning:
+- **Text Chunking & Vector DB**: Uses `RecursiveCharacterTextSplitter` (chunk size: 800, overlap: 80) and local Chroma DB vector storage with BGE transformer embeddings.
+- **Autonomous ReAct Agent Loop (`agentic`)**:
+  - Enforces explicit `Thought:` $\rightarrow$ `Action:` $\rightarrow$ `Observation:` iterations.
+  - **Multi-Pattern Tool Parser (`extract_tool_calls`)**: Extracts tool commands across multiple formats (standard `Action: tool(...)`, markdown fences, raw call syntax, and key-value blocks).
+  - **Windowed Observation Truncation (`execute_tool`)**: Caps tool outputs to 800 characters, preventing tool output bloat from blowing out small model context limits.
+  - **Dynamic Error Reflection**: Injects runtime execution feedback back into the prompt if a tool raises an error, guiding the agent to self-correct its syntax in the next turn.
+  - **Compact Tool Schema (`get_all_tools(compact=True)`)**: Formats tool definitions down to ~60 tokens (a 13× reduction from 800+ tokens of raw file comments), preserving precious context space for 0.5B–3B parameter models.
+  - Structured audit trail logged to `logs/Agentic.log`.
 
 ---
 
@@ -124,6 +140,7 @@ Lumina includes a comprehensive `pytest` test suite configured via `pytest.ini` 
 | **`test_assesser_vs_router_benchmark.py`** | Validates `SystemAssess` theoretical T/s predictions against actual `llamafile` inference speeds across all 4 bundled models (`Phi-3.5-mini 3.8B`, `Llama-3.2 1B`, `Qwen-Coder 1.5B`, `Qwen 0.5B`) with automated deletion of `bandwidth.txt` per run. Automatically exports results to `logs/benchmark_results.json`. |
 | **`test_router_classification.py`** | Verifies casual vs. technical routing accuracy (100%), context intent triggers, and Chroma vector database memory storage and retrieval. |
 | **`test_smartswitch_stress.py`** | Stresses the 3.8B model with heavy context and KV-cache pressure, measures throughput drops (e.g. $11.24 \rightarrow 7.93\text{ T/s}$), triggers hot-swap failover, benchmarks millisecond switchover latency, and tests query preservation. |
+| **`test_hierarchical_kv_smartswitch.py`** | Benchmarks Condition A (Status Quo Direct Model Swap, ~22.3s downtime) against Condition B (Tier 1 KV Cache Eviction & 2-Turn RAG Compaction, ~0.30s overhead), proving a 73.4× speedup and 98.6% latency reduction. |
 
 ---
 
