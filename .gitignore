@@ -17,3 +17,14 @@ tectonic
 *.pdf
 *.docx
 lumina_smartswitch_research_paper.pdf
+
+# IMR Research & Experimental Files (Omit from GitHub)
+*imr*
+*IMR*
+interlinking_*
+matched_head_to_head_and_attention_diagnostic.py
+generate_comprehensive_paper.py
+generate_imr_*.py
+scratch/
+generated/
+
