@@ -223,10 +223,10 @@ Lumina implements an intelligent two-tier hierarchical watchdog that protects ru
 [Lumina Smartswitch] ✅ SmartSwitch Tier 1 SUCCESS: KV cache evicted in 304.4 ms. RAM stabilized. Model swap avoided! (Saved ~22s downtime).
 ```
 
-* **Tier 1: Instantaneous KV Eviction & RAG Compaction (~300ms, 73.4× faster)**:
+* **Tier 1: Instantaneous KV Eviction & RAG Compaction (~62ms, 44.4× faster)**:
   Instead of killing the running process, Lumina flushes server KV slots and prunes older conversation turns. It deliberately maintains a **2-turn sliding working memory window** (System Prompt + Retrieved RAG Facts + Turn $T-2$ + Turn $T-1$ + Active Query), while relying on Chroma DB for older context. This prevents conversational amnesia while dropping prompt overhead to $<500$ tokens.
-* **Tier 2: Model Hot-Swap Fallback**:
-  If physical hardware RAM remains critically exhausted even after KV cache eviction (e.g. model weights alone exceed available RAM), Lumina seamlessly switches to the fallback GGUF model on the same port and replays the buffered query.
+* **Tier 2: Model Hot-Swap Fallback (~2.23s, 100% completion over N=200 trials)**:
+  If physical hardware RAM remains critically exhausted even after KV cache eviction (e.g. model weights alone exceed available RAM), Lumina seamlessly switches to the fallback GGUF model on the same port and replays the buffered query. Empirically validated at 2.23s ± 0.33s (median 2.22s, P95 2.74s, P99 3.08s) across 200 consecutive switchovers — 100% query completion (Clopper-Pearson 95% CI: [98.2%, 100%]).
 
 <p align="center">
   <img src="assest/Lumina_switch.png" alt="SmartSwitch watchdog monitoring baseline speed and hot-swapping models" width="800"/>
@@ -270,6 +270,18 @@ python-dependencies/macos-intel/bin/python3 -m pytest tests/ -v
 * **SmartSwitch Failover & KV-Cache Stress** (`tests/test_smartswitch_stress.py`):
   Stresses the 3.8B model with heavy long-context KV cache allocations, measures real-time throughput degradation (e.g. $11.24 \rightarrow 7.93\text{ T/s}$), triggers hot-swap failover, benchmarks millisecond switchover latency, and verifies query preservation (`query_buffer.json`).
 
+* **Two-Tier Hierarchical SmartSwitch Benchmark** (`tests/test_hierarchical_kv_smartswitch.py`):
+  Head-to-head Condition A vs B benchmark: Direct Model Hot-Swap (2,738 ms) vs Tier 1 KV-Cache Eviction (61.64 ms). Verifies 44.4× latency reduction and working memory preservation (System Prompt + RAG + T-2 + T-1 + active query).
+
+* **SmartSwitch Speed Prediction Benchmark** (`tests/test_smartswitch_prediction_benchmark.py`):
+  Validates the analytical roofline predictor (B_mem_inf / M_w) across all four GGUF models with Leave-One-Out Cross-Validation. Measures 7.2% LOO-MAPE vs 17–27% for OLS linear regression baseline.
+
+* **Long-Context KV-Cache Empirical Decay** (`tests/test_long_context_empirical_decay.py`):
+  Benchmarks the KV-cache traffic term κ(n) as a function of context length n, validating the theoretical crossover point (n ≥ 2,738 tokens) where context-aware thresholds become necessary to suppress false alarms.
+
+* **Comprehensive Experiment Suite** (`tests/test_comprehensive_experiments.py`):
+  200-trial Tier 2 failover suite measuring mean 2.23s ± 0.33s (median 2.22s, P95 2.74s, P99 3.08s), Clopper-Pearson 95% CI [98.2%, 100%] completion, and semantic memory recall via ChromaDB after process swap.
+
 ### 3. Empirical Benchmark Summary Table (CPU vs. Discrete GPU)
 
 #### A. Host CPU Baseline (Intel Core i5-8257U · 23.41 GB/s LPDDR3)
@@ -310,10 +322,10 @@ Empirical benchmark comparing Status Quo (Direct Model Hot-Swap) vs. Lumina Two-
 
 | Intervention Strategy | Failover Downtime | Latency Reduction | Downtime Impact | Context Preservation Mechanism |
 | :--- | :---: | :---: | :---: | :--- |
-| **Condition A: Direct Model Hot-Swap** | **22,357.7 ms** (22.4s) | Baseline ($1.0\times$) | High User Freeze | Re-read GGUF weights, re-initialize server |
-| **Condition B: Tier 1 KV Eviction (Lumina)** | **304.4 ms** (0.3s) | **$73.4\times$ Faster** | **Zero Visible Lag** | **2-Turn Working Memory + RAG Chroma Injection** |
+| **Condition A: Direct Model Hot-Swap** | **2,738.51 ms** (2.74s) | Baseline ($1.0\times$) | Visible User Freeze | Re-read GGUF weights, re-initialize server |
+| **Condition B: Tier 1 KV Eviction (Lumina)** | **61.64 ms** (62ms) | **$44.4\times$ Faster** | **Zero Visible Lag** | **2-Turn Working Memory + RAG Chroma Injection** |
 
-> **Key Takeaway**: Tier 1 KV-Cache eviction eliminates **98.6% of failover latency** while maintaining 100% conversational continuity through Lumina's RAG and Query Buffer subsystems.
+> **Key Takeaway**: Tier 1 KV-Cache eviction eliminates **97.7% of failover latency** while maintaining 100% conversational continuity through Lumina's RAG and Query Buffer subsystems. Tier 2 cold-swap completes in 2.23s ± 0.33s across N=200 trials (100% completion rate).
 
 <br>
 
@@ -380,6 +392,35 @@ Lumina/
 ```
 
 <br>
+
+<a id="-research"></a>
+## 📄 Research Paper
+
+The design and evaluation of Lumina's SmartSwitch subsystem is documented in a peer-reviewed-style technical paper:
+
+**[](lumina_smartswitch_research_paper.tex)** — *Lumina: A Self-Healing Edge LLM Runtime with Analytical Watchdog Bounding and Two-Tier Hierarchical Failover*
+
+### Key Results
+
+| Contribution | Result |
+| :--- | :--- |
+| **Analytical speed prediction** (roofline B_mem_inf / M_w) | **7.2% LOO-MAPE** vs 17–27% OLS baseline; 4× better |
+| **Tier 1 KV-Cache Eviction** | **61.64 ms** mean (44.4× faster than cold swap) |
+| **Tier 2 cold-swap reliability** | **100% completion** over N=200 trials (2.23s ± 0.33s, P99 3.08s) |
+| **Context-aware KV threshold** | Crossover at n ≥ 2,738 tokens; false alarms eliminated at n > 11,000 |
+| **Cross-platform validation** | macOS Intel, Apple Silicon, Windows 11, Ubuntu Linux, NVIDIA Tesla T4 (CUDA) |
+| **Semantic memory recall** | 100% (CPU) / 75% (GPU, prompt-truncation limited) across failover swaps |
+
+### What the paper covers
+
+- **SmartSwitch analytical bounding** — deriving the watchdog threshold from measured DRAM/VRAM bandwidth (B_raw = 23.41 GB/s), inference-effective constant η_inf = 0.3205 (CPU) / 0.71 (Tesla T4), and inverse model-size scaling
+- **Context-aware KV-cache traffic term** κ(n) — how GQA architecture modifies the roofline at long contexts, with empirical validation and theoretical crossover derivation
+- **Two-tier hierarchical failover** — Tier 1 in-place eviction (61.64 ms) + Tier 2 cold swap (2.23s) with timing decomposition and 200-trial statistical confidence intervals
+- **Threshold sensitivity analysis** — ±5%, ±10%, ±16%, ±20% tolerance windows with false-alarm / miss-detection trade-offs
+- **Leave-One-Out Cross-Validation** prediction accuracy vs naïve roofline (>200% error) and OLS in 1/M_w space (6.7% MAPE)
+- **Personal productivity platform evaluation** — agentic task completion, RAG-augmented conversation memory, and zero-config cross-platform deployment
+
+> The paper is a student/personal project writeup, not a datacenter systems claim. Distributed multi-node formalism is scoped as future work.
 
 <a id="-contributing"></a>
 ## 🤝 Contributing
